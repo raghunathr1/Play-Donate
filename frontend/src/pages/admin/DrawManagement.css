@@ -1,0 +1,636 @@
+.draw-admin-page {
+  min-height: 100vh;
+  background: #f5f7f9;
+  color: #17221c;
+}
+
+/* HEADER */
+
+.draw-admin-header {
+  background: #102019;
+  color: white;
+  padding: 22px 6%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.draw-admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.draw-admin-brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #dcefe5;
+  color: #173f2b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.draw-admin-brand h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.draw-admin-brand p {
+  margin: 4px 0 0;
+  color: #b8c8bf;
+  font-size: 13px;
+}
+
+/* MAIN */
+
+.draw-admin-main {
+  width: min(1180px, 92%);
+  margin: auto;
+  padding: 42px 0 70px;
+}
+
+/* HERO */
+
+.draw-admin-hero {
+  background: white;
+  border: 1px solid #e2e9e5;
+  border-radius: 24px;
+  padding: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+  margin-bottom: 24px;
+  box-shadow: 0 12px 35px rgba(25, 45, 35, 0.06);
+}
+
+.draw-eyebrow,
+.draw-section-heading > span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #4e8065;
+}
+
+.draw-admin-hero h2 {
+  margin: 9px 0 8px;
+  font-size: 30px;
+}
+
+.draw-admin-hero p {
+  margin: 0;
+  max-width: 650px;
+  color: #68746d;
+  line-height: 1.7;
+}
+
+.draw-count-box {
+  min-width: 130px;
+  padding: 19px;
+  background: #edf6f0;
+  border-radius: 18px;
+  text-align: center;
+}
+
+.draw-count-box strong {
+  display: block;
+  color: #173b29;
+  font-size: 29px;
+}
+
+.draw-count-box span {
+  color: #5c7163;
+  font-size: 12px;
+}
+
+/* MESSAGES */
+
+.draw-message {
+  display: flex;
+  gap: 8px;
+  padding: 13px 16px;
+  border-radius: 13px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.draw-message.error {
+  background: #fff0f0;
+  border: 1px solid #f2d4d4;
+  color: #a83d3d;
+}
+
+.draw-message.success {
+  background: #edf8f1;
+  border: 1px solid #d4eadb;
+  color: #39704e;
+}
+
+/* SECTION */
+
+.draw-section-heading {
+  margin-bottom: 20px;
+}
+
+.draw-section-heading h2 {
+  margin: 7px 0 6px;
+  font-size: 23px;
+}
+
+.draw-section-heading p {
+  margin: 0;
+  color: #6d7872;
+  font-size: 13px;
+}
+
+/* SIMULATION */
+
+.draw-simulation-card {
+  background: white;
+  border: 1px solid #e2e9e5;
+  border-radius: 22px;
+  padding: 28px;
+  margin-bottom: 42px;
+  box-shadow: 0 8px 25px rgba(25, 45, 35, 0.045);
+}
+
+.draw-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 17px;
+  margin-bottom: 17px;
+}
+
+.draw-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 17px;
+}
+
+.draw-form-group label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #314139;
+}
+
+.draw-form-group label span {
+  margin-left: 6px;
+  color: #87928b;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.draw-form-group input,
+.draw-form-group select {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid #dce5df;
+  background: #fbfcfb;
+  border-radius: 11px;
+  font-family: inherit;
+  font-size: 13px;
+  color: #243229;
+  outline: none;
+}
+
+.draw-form-group input:focus,
+.draw-form-group select:focus {
+  background: white;
+  border-color: #80a990;
+  box-shadow: 0 0 0 3px rgba(128, 169, 144, 0.12);
+}
+
+.draw-form-group small {
+  color: #8a948e;
+  font-size: 11px;
+}
+
+.draw-primary-btn {
+  border: none;
+  background: #173b29;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 11px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.draw-primary-btn:hover {
+  background: #24543a;
+}
+
+.draw-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* PRIZES */
+
+.draw-prize-section {
+  margin-bottom: 42px;
+}
+
+.draw-prize-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 17px;
+}
+
+.draw-prize-card {
+  background: white;
+  border: 1px solid #e2e9e5;
+  border-radius: 19px;
+  padding: 21px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.draw-prize-card.jackpot {
+  background: #173b29;
+  color: white;
+  border-color: #173b29;
+}
+
+.draw-prize-number {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #edf6f0;
+  color: #356247;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.draw-prize-card.jackpot
+  .draw-prize-number {
+  background: #dcefe5;
+}
+
+.draw-prize-card h3 {
+  margin: 0 0 5px;
+  font-size: 14px;
+}
+
+.draw-prize-card strong {
+  font-size: 22px;
+}
+
+.draw-prize-card p {
+  margin: 3px 0 0;
+  color: #78837d;
+  font-size: 11px;
+}
+
+.draw-prize-card.jackpot p {
+  color: #c4d4ca;
+}
+
+/* HISTORY */
+
+.draw-history-section {
+  margin-top: 10px;
+}
+
+.draw-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 19px;
+}
+
+.draw-history-card {
+  background: white;
+  border: 1px solid #e2e9e5;
+  border-radius: 21px;
+  padding: 23px;
+  box-shadow: 0 8px 25px rgba(25, 45, 35, 0.045);
+  transition: transform 0.2s ease,
+              box-shadow 0.2s ease;
+}
+
+.draw-history-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 35px rgba(25, 45, 35, 0.08);
+}
+
+.draw-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid #edf0ee;
+}
+
+.draw-card-top > div > span,
+.winning-numbers-section > span {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #819088;
+}
+
+.draw-card-top h3 {
+  margin: 6px 0 0;
+  font-size: 20px;
+}
+
+.draw-status {
+  padding: 7px 10px;
+  border-radius: 50px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.draw-status.published {
+  background: #eaf7ef;
+  color: #34704c;
+}
+
+.draw-status.simulated {
+  background: #fff5df;
+  color: #8b6b2e;
+}
+
+/* MODE */
+
+.draw-mode-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px 0;
+  border-bottom: 1px solid #edf0ee;
+  font-size: 12px;
+}
+
+.draw-mode-row span {
+  color: #78837d;
+}
+
+.draw-mode-row strong {
+  color: #314139;
+}
+
+/* NUMBERS */
+
+.winning-numbers-section {
+  padding: 17px 0;
+}
+
+.winning-number-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.winning-number-list span {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #173b29;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* FINANCIAL */
+
+.draw-financial-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.draw-financial-grid > div {
+  padding: 13px;
+  background: #f7faf8;
+  border-radius: 12px;
+}
+
+.draw-financial-grid span {
+  display: block;
+  color: #7b867f;
+  font-size: 10px;
+  margin-bottom: 5px;
+}
+
+.draw-financial-grid strong {
+  font-size: 16px;
+}
+
+/* WINNERS */
+
+.draw-winner-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid #e7ede9;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.draw-winner-stats > div {
+  text-align: center;
+  padding: 12px 5px;
+  border-right: 1px solid #e7ede9;
+}
+
+.draw-winner-stats > div:last-child {
+  border-right: none;
+}
+
+.draw-winner-stats span {
+  display: block;
+  color: #7c8780;
+  font-size: 10px;
+}
+
+.draw-winner-stats strong {
+  display: block;
+  margin-top: 4px;
+}
+
+/* ROLLOVER */
+
+.draw-rollover {
+  display: flex;
+  justify-content: space-between;
+  padding: 13px 0;
+  font-size: 11px;
+}
+
+.draw-rollover span {
+  color: #78837d;
+}
+
+.draw-rollover strong {
+  color: #3b694c;
+}
+
+/* ACTIONS */
+
+.draw-actions {
+  display: flex;
+  gap: 9px;
+  padding-top: 14px;
+  border-top: 1px solid #edf0ee;
+}
+
+.draw-publish-btn,
+.draw-calculate-btn {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 11px;
+  color: white;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.draw-publish-btn {
+  background: #173b29;
+}
+
+.draw-calculate-btn {
+  background: #356247;
+}
+
+.draw-publish-btn:hover,
+.draw-calculate-btn:hover {
+  opacity: 0.9;
+}
+
+.draw-publish-btn:disabled,
+.draw-calculate-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.draw-published-note {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 9px;
+  background: #edf8f1;
+  color: #39704e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* EMPTY */
+
+.draw-empty {
+  padding: 55px 20px;
+  background: white;
+  border: 1px dashed #ccd8d0;
+  border-radius: 20px;
+  text-align: center;
+}
+
+.draw-empty div {
+  font-size: 40px;
+}
+
+.draw-empty h3 {
+  margin: 10px 0 5px;
+}
+
+.draw-empty p {
+  margin: 0;
+  color: #78837d;
+  font-size: 13px;
+}
+
+/* LOADING */
+
+.draw-admin-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.draw-spinner {
+  width: 42px;
+  height: 42px;
+  border: 4px solid #dce8e0;
+  border-top-color: #173b29;
+  border-radius: 50%;
+  animation: drawSpin 0.8s linear infinite;
+}
+
+.draw-admin-loading h1 {
+  margin: 16px 0 5px;
+}
+
+.draw-admin-loading p {
+  margin: 0;
+  color: #6f7b74;
+}
+
+@keyframes drawSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 900px) {
+  .draw-prize-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .draw-history-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .draw-admin-header {
+    padding: 18px 5%;
+  }
+
+  .draw-admin-main {
+    width: 92%;
+    padding-top: 25px;
+  }
+
+  .draw-admin-hero {
+    padding: 24px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .draw-admin-hero h2 {
+    font-size: 26px;
+  }
+
+  .draw-count-box {
+    width: 100%;
+  }
+
+  .draw-simulation-card {
+    padding: 22px;
+  }
+
+  .draw-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .draw-history-card {
+    padding: 18px;
+  }
+}

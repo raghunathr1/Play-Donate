@@ -1,0 +1,616 @@
+
+.charity-admin-page {
+  min-height: 100vh;
+  background: #f5f7f9;
+  color: #17221c;
+}
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.charity-admin-header {
+  background: #102019;
+  color: white;
+  padding: 22px 6%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.charity-admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.charity-admin-brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #dcefe5;
+  color: #173f2b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.charity-admin-brand h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.charity-admin-brand p {
+  margin: 4px 0 0;
+  color: #b8c8bf;
+  font-size: 13px;
+}
+
+/* =========================================================
+   MAIN
+========================================================= */
+
+.charity-admin-main {
+  width: min(1180px, 92%);
+  margin: 0 auto;
+  padding: 42px 0 70px;
+}
+
+/* =========================================================
+   HERO
+========================================================= */
+
+.charity-admin-hero {
+  background: white;
+  border: 1px solid #e2e9e5;
+  border-radius: 24px;
+  padding: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
+  box-shadow: 0 12px 35px rgba(25, 45, 35, 0.06);
+  margin-bottom: 24px;
+}
+
+.charity-admin-hero > div:first-child > span,
+.charity-admin-section-heading > span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #4e8065;
+}
+
+.charity-admin-hero h2 {
+  margin: 9px 0 8px;
+  font-size: 30px;
+}
+
+.charity-admin-hero p {
+  margin: 0;
+  max-width: 650px;
+  color: #68746d;
+  line-height: 1.7;
+}
+
+.charity-admin-count {
+  min-width: 130px;
+  padding: 19px;
+  border-radius: 18px;
+  background: #edf6f0;
+  text-align: center;
+}
+
+.charity-admin-count strong {
+  display: block;
+  font-size: 29px;
+  color: #173b29;
+}
+
+.charity-admin-count span {
+  display: block;
+  margin-top: 3px;
+  color: #5c7163;
+  font-size: 12px;
+}
+
+/* =========================================================
+   MESSAGES
+========================================================= */
+
+.charity-admin-message {
+  border-radius: 13px;
+  padding: 13px 16px;
+  margin-bottom: 18px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.charity-admin-message.error {
+  background: #fff0f0;
+  border: 1px solid #f2d4d4;
+  color: #a83d3d;
+}
+
+.charity-admin-message.success {
+  background: #edf8f1;
+  border: 1px solid #d4eadb;
+  color: #39704e;
+}
+
+/* =========================================================
+   SECTION HEADINGS
+========================================================= */
+
+.charity-admin-section-heading {
+  margin-bottom: 20px;
+}
+
+.charity-admin-section-heading h2 {
+  margin: 7px 0 6px;
+  font-size: 23px;
+}
+
+.charity-admin-section-heading p {
+  margin: 0;
+  color: #6d7872;
+  font-size: 13px;
+}
+
+/* =========================================================
+   FORM SECTION
+========================================================= */
+
+.charity-admin-form-section {
+  background: white;
+  border: 1px solid #e2e9e5;
+  border-radius: 22px;
+  padding: 28px;
+  margin-bottom: 42px;
+  box-shadow: 0 8px 25px rgba(25, 45, 35, 0.045);
+}
+
+.charity-admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.charity-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 17px;
+}
+
+.charity-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.charity-form-group label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #314139;
+}
+
+.charity-form-group input,
+.charity-form-group textarea {
+  width: 100%;
+  border: 1px solid #dce5df;
+  background: #fbfcfb;
+  border-radius: 11px;
+  padding: 12px 13px;
+  font-family: inherit;
+  font-size: 13px;
+  color: #243229;
+  outline: none;
+  transition: border 0.2s ease,
+              box-shadow 0.2s ease,
+              background 0.2s ease;
+}
+
+.charity-form-group textarea {
+  resize: vertical;
+  min-height: 105px;
+}
+
+.charity-form-group input:focus,
+.charity-form-group textarea:focus {
+  background: white;
+  border-color: #80a990;
+  box-shadow: 0 0 0 3px rgba(128, 169, 144, 0.12);
+}
+
+.charity-form-group small {
+  color: #8a948e;
+  font-size: 11px;
+}
+
+/* =========================================================
+   FEATURED TOGGLE
+========================================================= */
+
+.charity-featured-toggle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  cursor: pointer;
+  padding: 14px;
+  border: 1px solid #e2e9e5;
+  border-radius: 13px;
+  background: #fafcfb;
+}
+
+.charity-featured-toggle input {
+  display: none;
+}
+
+.charity-checkbox {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #c8d5cd;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  background: white;
+  font-size: 13px;
+}
+
+.charity-featured-toggle input:checked
+  + .charity-checkbox {
+  background: #173b29;
+  border-color: #173b29;
+  color: white;
+}
+
+.charity-featured-toggle strong,
+.charity-featured-toggle small {
+  display: block;
+}
+
+.charity-featured-toggle strong {
+  font-size: 13px;
+}
+
+.charity-featured-toggle small {
+  margin-top: 2px;
+  color: #78847d;
+  font-size: 11px;
+}
+
+.charity-admin-submit {
+  width: fit-content;
+  border: none;
+  background: #173b29;
+  color: white;
+  border-radius: 11px;
+  padding: 12px 20px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.charity-admin-submit:hover {
+  background: #24543a;
+}
+
+.charity-admin-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   DIRECTORY
+========================================================= */
+
+.charity-directory-section {
+  margin-top: 10px;
+}
+
+.charity-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 19px;
+}
+
+.charity-admin-card {
+  background: white;
+  border: 1px solid #e2e9e5;
+  border-radius: 21px;
+  overflow: hidden;
+  box-shadow: 0 8px 25px rgba(25, 45, 35, 0.045);
+  transition: transform 0.2s ease,
+              box-shadow 0.2s ease;
+}
+
+.charity-admin-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 15px 35px rgba(25, 45, 35, 0.09);
+}
+
+/* =========================================================
+   IMAGE
+========================================================= */
+
+.charity-admin-image {
+  height: 205px;
+  background: #e9f1ec;
+  position: relative;
+  overflow: hidden;
+}
+
+.charity-admin-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.charity-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: #62806e;
+}
+
+.charity-status,
+.charity-featured-badge {
+  position: absolute;
+  top: 13px;
+  padding: 7px 10px;
+  border-radius: 50px;
+  font-size: 10px;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+}
+
+.charity-status {
+  left: 13px;
+}
+
+.charity-status.active {
+  background: rgba(235, 249, 240, 0.94);
+  color: #39704e;
+}
+
+.charity-status.inactive {
+  background: rgba(255, 239, 239, 0.94);
+  color: #a84444;
+}
+
+.charity-featured-badge {
+  right: 13px;
+  background: rgba(255, 249, 226, 0.95);
+  color: #876a22;
+}
+
+/* =========================================================
+   CARD CONTENT
+========================================================= */
+
+.charity-admin-card-content {
+  padding: 22px;
+}
+
+.charity-admin-card-content h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.charity-admin-description {
+  margin: 0 0 17px;
+  color: #68746d;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.charity-events {
+  background: #f7faf8;
+  border: 1px solid #e6ede8;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.charity-events strong {
+  font-size: 12px;
+}
+
+.charity-events ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.charity-events li {
+  margin-bottom: 4px;
+  color: #68746d;
+  font-size: 12px;
+}
+
+.charity-image-link {
+  display: inline-block;
+  color: #356247;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  margin-bottom: 17px;
+}
+
+.charity-image-link:hover {
+  text-decoration: underline;
+}
+
+/* =========================================================
+   ACTIONS
+========================================================= */
+
+.charity-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid #edf0ee;
+}
+
+.admin-action-btn {
+  border: 1px solid #dce5df;
+  background: white;
+  color: #34453b;
+  border-radius: 9px;
+  padding: 9px 11px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-action-btn:hover {
+  background: #f4f8f5;
+}
+
+.admin-action-btn.activate {
+  color: #34704c;
+  border-color: #cfe4d6;
+}
+
+.admin-action-btn.deactivate {
+  color: #9a632d;
+  border-color: #eadac4;
+}
+
+.admin-action-btn.featured {
+  color: #6c5a22;
+  border-color: #e8dfbf;
+}
+
+.admin-action-btn.delete {
+  color: #ad4545;
+  border-color: #efd3d3;
+}
+
+.admin-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   EMPTY
+========================================================= */
+
+.charity-empty-state {
+  background: white;
+  border: 1px dashed #ccd8d0;
+  border-radius: 20px;
+  padding: 55px 20px;
+  text-align: center;
+}
+
+.charity-empty-state > div {
+  font-size: 40px;
+  color: #6d8b79;
+}
+
+.charity-empty-state h3 {
+  margin: 12px 0 6px;
+}
+
+.charity-empty-state p {
+  margin: 0;
+  color: #78837d;
+  font-size: 13px;
+}
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+.charity-admin-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.charity-admin-loading h1 {
+  margin: 16px 0 5px;
+  font-size: 22px;
+}
+
+.charity-admin-loading p {
+  margin: 0;
+  color: #6f7b74;
+}
+
+.charity-admin-spinner {
+  width: 42px;
+  height: 42px;
+  border: 4px solid #dce8e0;
+  border-top-color: #173b29;
+  border-radius: 50%;
+  animation: charityAdminSpin 0.8s linear infinite;
+}
+
+@keyframes charityAdminSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 850px) {
+  .charity-admin-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .charity-admin-header {
+    padding: 18px 5%;
+  }
+
+  .charity-admin-main {
+    width: 92%;
+    padding-top: 25px;
+  }
+
+  .charity-admin-hero {
+    padding: 24px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .charity-admin-hero h2 {
+    font-size: 26px;
+  }
+
+  .charity-admin-count {
+    width: 100%;
+  }
+
+  .charity-admin-form-section {
+    padding: 22px;
+  }
+
+  .charity-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .charity-admin-actions {
+    flex-direction: column;
+  }
+
+  .admin-action-btn {
+    width: 100%;
+  }
+}
