@@ -1,16 +1,136 @@
-# React + Vite
+#  Play-Donate
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Play-Donate is a full-stack golf-based rewards platform where users can track their Stableford scores, participate in monthly prize draws, win prizes based on the number of matched numbers, and support charities through donations.
 
-Currently, two official plugins are available:
+The application also includes subscription management, winner verification, payment processing, charity management, and an admin dashboard.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-## React Compiler
+##  Live Demo
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Frontend
+https://play-donate.vercel.app
 
-## Expanding the Oxlint configuration
+### Backend
+https://play-donate-zb4x.onrender.com
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+### GitHub Repository
+https://github.com/raghunathr1/Play-Donate
+
+
+##  Features
+
+###  User Features
+
+- User Signup and Login
+- JWT-based Authentication
+- Protected User Dashboard
+- User Profile
+- Subscription Management
+- Monthly Stableford Score Entry
+- View Previous Scores
+- Monthly Prize Draws
+- View Draw Results
+- View Winnings
+- Winner Verification Status
+- Winner Proof Upload
+- Charity Listing
+- Charity Donations
+- Stripe Payment Integration
+
+
+##  Draw System
+
+The application includes a monthly number draw system.
+
+- Monthly draws
+- Random number generation
+- Score-based weighted number selection
+- Match 3, Match 4 and Match 5 prize categories
+- Prize pool calculation
+- Prize distribution
+- Jackpot rollover
+- Draw result calculation
+- Published draw results
+
+
+##  Payments
+
+Stripe is used for payment processing.
+
+Supported payment functionality includes:
+
+- Monthly subscription
+- Yearly subscription
+- Charity donations
+- Stripe Checkout
+- Stripe Webhooks
+- Subscription status updates
+- Donation payment status updates
+
+
+##  Winner Management
+
+Users who win a draw can submit proof for verification.
+
+Admin can:
+
+- View winners
+- Review submitted proof
+- Verify winners
+- Approve winnings
+- Mark winnings as paid
+
+Cloudinary is used for winner proof image storage.
+
+
+##  Admin Dashboard
+
+Admin features include:
+
+- Admin Dashboard
+- User Management
+- Draw Management
+- Charity Management
+- Winner Management
+- Reports
+- Draw creation
+- Draw publishing
+- Result calculation
+- Winner verification
+- Payment status management
+
+
+##  Tech Stack
+
+### Frontend
+
+- React
+- Vite
+- React Router
+- CSS
+- JavaScript
+- Fetch API
+
+### Backend
+
+- Node.js
+- Express.js
+- MongoDB
+- Mongoose
+- JWT
+- bcryptjs
+- Stripe
+- Cloudinary
+- Multer
+- CORS
+- dotenv
+
+### Deployment
+
+- Frontend: Vercel
+- Backend: Render
+- Database: MongoDB Atlas
+- Image Storage: Cloudinary
+- Payments: Stripe
+
+
