@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiRequest } from "../../api";
 import "./Signup.css";
 
 function Signup() {
@@ -57,37 +58,22 @@ function Signup() {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        "http://localhost:5000/api/auth/signup",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: formData.name.trim(),
-            email: formData.email.trim(),
-            password: formData.password,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(
-          data.message ||
-            "Unable to create your account."
-        );
-        return;
-      }
+      const data = await apiRequest("/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+        }),
+      });
 
       navigate("/login");
     } catch (error) {
       console.error("Signup Error:", error);
 
       setError(
-        "Unable to connect to server. Please try again."
+        error.message ||
+          "Unable to connect to server. Please try again."
       );
     } finally {
       setLoading(false);
@@ -99,24 +85,34 @@ function Signup() {
 
       {/* BACKGROUND DECORATION */}
       <div className="auth-background-shape shape-one"></div>
+
       <div className="auth-background-shape shape-two"></div>
 
       <div className="auth-container">
 
         {/* BRAND */}
-        <Link to="/" className="auth-brand">
+        <Link
+          to="/"
+          className="auth-brand"
+        >
 
           <div className="auth-brand-mark">
             DH
           </div>
 
           <div className="auth-brand-copy">
-            <h2>Digital Heroes</h2>
-            <span>Play. Win. Give.</span>
+
+            <h2>
+              Digital Heroes
+            </h2>
+
+            <span>
+              Play. Win. Give.
+            </span>
+
           </div>
 
         </Link>
-
 
         {/* SIGNUP CARD */}
         <div className="auth-card signup-card">
@@ -138,15 +134,16 @@ function Signup() {
 
           </div>
 
-
           {/* ERROR */}
           {error && (
             <div className="auth-message auth-error">
+
               <span>!</span>
+
               {error}
+
             </div>
           )}
-
 
           {/* FORM */}
           <form
@@ -173,7 +170,6 @@ function Signup() {
 
             </div>
 
-
             {/* EMAIL */}
             <div className="form-group">
 
@@ -192,7 +188,6 @@ function Signup() {
               />
 
             </div>
-
 
             {/* PASSWORD */}
             <div className="form-group">
@@ -217,7 +212,6 @@ function Signup() {
 
             </div>
 
-
             {/* CONFIRM PASSWORD */}
             <div className="form-group">
 
@@ -237,7 +231,6 @@ function Signup() {
 
             </div>
 
-
             {/* SUBMIT */}
             <button
               type="submit"
@@ -253,6 +246,7 @@ function Signup() {
               ) : (
                 <>
                   Create Account
+
                   <span className="submit-arrow">
                     →
                   </span>
@@ -263,13 +257,13 @@ function Signup() {
 
           </form>
 
-
           {/* LOGIN LINK */}
           <div className="auth-footer">
 
             <p>
               Already have an account?
               {" "}
+
               <Link to="/login">
                 Sign in
               </Link>
@@ -279,16 +273,15 @@ function Signup() {
 
         </div>
 
-
         {/* BOTTOM TEXT */}
         <p className="auth-bottom-text">
           Every journey starts with one step.
         </p>
 
       </div>
+
     </div>
   );
 }
 
 export default Signup;
-

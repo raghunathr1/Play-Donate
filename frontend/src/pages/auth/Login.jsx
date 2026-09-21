@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiRequest } from "../../api";
 import "./Login.css";
 
 function Login() {
@@ -28,35 +29,17 @@ function Login() {
     setError("");
 
     if (!formData.email || !formData.password) {
-      setError(
-        "Please enter your email and password."
-      );
+      setError("Please enter your email and password.");
       return;
     }
 
     try {
       setLoading(true);
 
-      const response = await fetch(
-        "http://localhost:5000/api/auth/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(
-          data.message ||
-            "Invalid email or password."
-        );
-        return;
-      }
+      const data = await apiRequest("/auth/login", {
+        method: "POST",
+        body: JSON.stringify(formData),
+      });
 
       localStorage.setItem(
         "digitalHeroesToken",
@@ -68,24 +51,18 @@ function Login() {
         JSON.stringify(data.user)
       );
 
-      // =========================================
       // ROLE BASED REDIRECTION
-      // =========================================
-
       if (data.user.role === "Admin") {
         navigate("/admin");
       } else {
         navigate("/dashboard");
       }
-
     } catch (error) {
-      console.error(
-        "Login Error:",
-        error
-      );
+      console.error("Login Error:", error);
 
       setError(
-        "Unable to connect to server. Please try again."
+        error.message ||
+          "Unable to connect to server. Please try again."
       );
     } finally {
       setLoading(false);
@@ -94,6 +71,7 @@ function Login() {
 
   return (
     <div className="auth-page login-page">
+
       <div className="auth-background-shape shape-one"></div>
       <div className="auth-background-shape shape-two"></div>
 
@@ -101,22 +79,26 @@ function Login() {
 
         {/* BRAND */}
         <div className="auth-brand">
+
           <div className="auth-brand-mark">
             DH
           </div>
 
           <div>
             <h2>Digital Heroes</h2>
+
             <span>
               Play. Win. Give.
             </span>
           </div>
+
         </div>
 
         {/* LOGIN CARD */}
         <div className="auth-card">
 
           <div className="auth-card-header">
+
             <span className="auth-eyebrow">
               WELCOME BACK
             </span>
@@ -129,6 +111,7 @@ function Login() {
               Sign in to continue your Digital Heroes
               journey.
             </p>
+
           </div>
 
           {/* ERROR */}
@@ -138,6 +121,7 @@ function Login() {
             </div>
           )}
 
+          {/* LOGIN FORM */}
           <form
             className="auth-form"
             onSubmit={handleSubmit}
@@ -145,6 +129,7 @@ function Login() {
 
             {/* EMAIL */}
             <div className="form-group">
+
               <label htmlFor="login-email">
                 Email Address
               </label>
@@ -158,10 +143,12 @@ function Login() {
                 placeholder="Enter your email"
                 autoComplete="email"
               />
+
             </div>
 
             {/* PASSWORD */}
             <div className="form-group">
+
               <label htmlFor="login-password">
                 Password
               </label>
@@ -175,6 +162,7 @@ function Login() {
                 placeholder="Enter your password"
                 autoComplete="current-password"
               />
+
             </div>
 
             {/* SUBMIT */}
@@ -183,6 +171,7 @@ function Login() {
               className="auth-submit-btn"
               disabled={loading}
             >
+
               {loading ? (
                 <>
                   <span className="button-spinner"></span>
@@ -191,19 +180,25 @@ function Login() {
               ) : (
                 "Sign In"
               )}
+
             </button>
+
           </form>
 
           {/* SIGNUP LINK */}
           <div className="auth-footer">
+
             <p>
               Don't have an account?
               {" "}
+
               <Link to="/signup">
                 Create Account
               </Link>
             </p>
+
           </div>
+
         </div>
 
         {/* BOTTOM TEXT */}
@@ -212,6 +207,7 @@ function Login() {
         </p>
 
       </div>
+
     </div>
   );
 }
