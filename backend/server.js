@@ -46,10 +46,7 @@ app.use(cors());
 // because Stripe requires the raw request body.
 // ==================================================
 
-app.use(
-  "/api/subscriptions/webhook",
-  stripeWebhookRoutes
-);
+app.use("/api/stripe/webhook", stripeWebhookRoutes);
 
 // ==================================================
 // JSON BODY PARSER
