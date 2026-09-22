@@ -1,63 +1,80 @@
 const express = require("express");
-
-const Score = require("../models/Score");
-const authMiddleware = require("../middleware/authMiddleware");
-
 const router = express.Router();
 
+const authMiddleware = require("../middleware/authMiddleware");
+const supabase = require("../config/supabase");
 
-// ==========================================
-// GET ALL SCORES OF LOGGED-IN USER
-// ==========================================
-
+// GET - Current user's scores
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const scores = await Score.find({
-      user: req.user._id,
-    }).sort({
-      date: -1,
-    });
+    const { data: scores, error } = await supabase
+      .from("scores")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .order("score_date", { ascending: false });
 
-    res.status(200).json({
-      scores,
+    if (error) {
+      console.error("Get scores error:", error);
+      return res.status(500).json({
+        message: "Failed to fetch scores",
+      });
+    }
+
+    return res.json({
+      scores: scores || [],
     });
   } catch (error) {
-    console.error("Get Scores Error:", error.message);
+    console.error("Get scores error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
 });
 
-
-// ==========================================
-// ADD NEW SCORE
-// ==========================================
-
+// POST - Add score
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { score, date } = req.body;
+    const { score, scoreDate } = req.body;
 
-    // Validate fields
-    if (score === undefined || !date) {
-      return res.status(400).json({
-        message: "Score and date are required",
-      });
-    }
-
-    // Validate score range
-    if (score < 1 || score > 45) {
+    // Validate score
+    if (
+      score === undefined ||
+      score === null ||
+      Number(score) < 1 ||
+      Number(score) > 45
+    ) {
       return res.status(400).json({
         message: "Score must be between 1 and 45",
       });
     }
 
+    // Validate date
+    if (!scoreDate) {
+      return res.status(400).json({
+        message: "Score date is required",
+      });
+    }
+
     // Check duplicate date
-    const existingScore = await Score.findOne({
-      user: req.user._id,
-      date: new Date(date),
-    });
+    const { data: existingScore, error: existingError } =
+      await supabase
+        .from("scores")
+        .select("id")
+        .eq("user_id", req.user.id)
+        .eq("score_date", scoreDate)
+        .maybeSingle();
+
+    if (existingError) {
+      console.error(
+        "Check existing score error:",
+        existingError
+      );
+
+      return res.status(500).json({
+        message: "Failed to check existing score",
+      });
+    }
 
     if (existingScore) {
       return res.status(400).json({
@@ -65,76 +82,152 @@ router.post("/", authMiddleware, async (req, res) => {
       });
     }
 
-    // Create score
-    const newScore = await Score.create({
-      user: req.user._id,
-      score,
-      date: new Date(date),
-    });
+    // Insert new score
+    const { data: newScore, error: insertError } =
+      await supabase
+        .from("scores")
+        .insert({
+          user_id: req.user.id,
+          score: Number(score),
+          score_date: scoreDate,
+        })
+        .select()
+        .single();
 
-    // Get user's scores
-    const allScores = await Score.find({
-      user: req.user._id,
-    }).sort({
-      date: -1,
-    });
+    if (insertError) {
+      console.error(
+        "Insert score error:",
+        insertError
+      );
 
-    // Keep only latest 5
+      return res.status(500).json({
+        message: "Failed to add score",
+      });
+    }
+
+    // Get all user's scores, newest first
+    const { data: allScores, error: fetchError } =
+      await supabase
+        .from("scores")
+        .select("*")
+        .eq("user_id", req.user.id)
+        .order("score_date", {
+          ascending: false,
+        });
+
+    if (fetchError) {
+      console.error(
+        "Fetch scores error:",
+        fetchError
+      );
+
+      return res.status(500).json({
+        message: "Score added but failed to fetch scores",
+      });
+    }
+
+    // Keep only latest 5 scores
     if (allScores.length > 5) {
       const scoresToDelete = allScores.slice(5);
 
       const idsToDelete = scoresToDelete.map(
-        (item) => item._id
+        (item) => item.id
       );
 
-      await Score.deleteMany({
-        _id: {
-          $in: idsToDelete,
-        },
+      const { error: deleteError } =
+        await supabase
+          .from("scores")
+          .delete()
+          .eq("user_id", req.user.id)
+          .in("id", idsToDelete);
+
+      if (deleteError) {
+        console.error(
+          "Delete old scores error:",
+          deleteError
+        );
+
+        return res.status(500).json({
+          message:
+            "Score added but failed to remove old scores",
+        });
+      }
+    }
+
+    // Fetch final latest 5 scores
+    const { data: finalScores, error: finalError } =
+      await supabase
+        .from("scores")
+        .select("*")
+        .eq("user_id", req.user.id)
+        .order("score_date", {
+          ascending: false,
+        })
+        .limit(5);
+
+    if (finalError) {
+      console.error(
+        "Fetch final scores error:",
+        finalError
+      );
+
+      return res.status(500).json({
+        message: "Score added successfully",
+        score: newScore,
       });
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Score added successfully",
       score: newScore,
+      scores: finalScores,
     });
   } catch (error) {
-    console.error("Add Score Error:", error.message);
+    console.error("Add score error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
 });
-
-
-// ==========================================
-// UPDATE SCORE
-// ==========================================
-
+// PUT - Update score
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
-    const { score, date } = req.body;
+    const { id } = req.params;
+    const { score, scoreDate } = req.body;
 
-    // Validate fields
-    if (score === undefined || !date) {
+    if (score === undefined || !scoreDate) {
       return res.status(400).json({
-        message: "Score and date are required",
+        message: "Score and score date are required",
       });
     }
 
-    // Validate score range
-    if (score < 1 || score > 45) {
+    const numericScore = Number(score);
+
+    if (
+      !Number.isInteger(numericScore) ||
+      numericScore < 1 ||
+      numericScore > 45
+    ) {
       return res.status(400).json({
         message: "Score must be between 1 and 45",
       });
     }
 
-    // Find score belonging to current user
-    const existingScore = await Score.findOne({
-      _id: req.params.id,
-      user: req.user._id,
-    });
+    const { data: existingScore, error: findError } = await supabase
+      .from("scores")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+
+    if (findError) {
+      console.error("Find score error:", findError);
+
+      return res.status(500).json({
+        message: "Failed to find score",
+      });
+    }
 
     if (!existingScore) {
       return res.status(404).json({
@@ -142,68 +235,110 @@ router.put("/:id", authMiddleware, async (req, res) => {
       });
     }
 
-    // Check duplicate date
-    const duplicateDate = await Score.findOne({
-      _id: {
-        $ne: req.params.id,
-      },
-      user: req.user._id,
-      date: new Date(date),
-    });
+    const { data: duplicateScore, error: duplicateError } = await supabase
+      .from("scores")
+      .select("id")
+      .eq("user_id", req.user.id)
+      .eq("score_date", scoreDate)
+      .neq("id", id)
+      .maybeSingle();
 
-    if (duplicateDate) {
+    if (duplicateError) {
+      console.error("Duplicate date check error:", duplicateError);
+
+      return res.status(500).json({
+        message: "Failed to check duplicate date",
+      });
+    }
+
+    if (duplicateScore) {
       return res.status(400).json({
         message: "A score already exists for this date",
       });
     }
 
-    existingScore.score = score;
-    existingScore.date = new Date(date);
+    const { data: updatedScore, error: updateError } = await supabase
+      .from("scores")
+      .update({
+        score: numericScore,
+        score_date: scoreDate,
+      })
+      .eq("id", id)
+      .eq("user_id", req.user.id)
+      .select("*")
+      .single();
 
-    await existingScore.save();
+    if (updateError) {
+      console.error("Update score error:", updateError);
 
-    res.status(200).json({
+      return res.status(500).json({
+        message: "Failed to update score",
+      });
+    }
+
+    return res.json({
       message: "Score updated successfully",
-      score: existingScore,
+      score: updatedScore,
     });
   } catch (error) {
-    console.error("Update Score Error:", error.message);
+    console.error("Update score error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
 });
 
-
-// ==========================================
-// DELETE SCORE
-// ==========================================
-
+// DELETE - Delete score
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
-    const deletedScore = await Score.findOneAndDelete({
-      _id: req.params.id,
-      user: req.user._id,
-    });
+    const { id } = req.params;
 
-    if (!deletedScore) {
+    const { data: existingScore, error: findError } = await supabase
+      .from("scores")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+
+    if (findError) {
+      console.error("Find score error:", findError);
+
+      return res.status(500).json({
+        message: "Failed to find score",
+      });
+    }
+
+    if (!existingScore) {
       return res.status(404).json({
         message: "Score not found",
       });
     }
 
-    res.status(200).json({
+    const { error: deleteError } = await supabase
+      .from("scores")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", req.user.id);
+
+    if (deleteError) {
+      console.error("Delete score error:", deleteError);
+
+      return res.status(500).json({
+        message: "Failed to delete score",
+      });
+    }
+
+    return res.json({
       message: "Score deleted successfully",
     });
   } catch (error) {
-    console.error("Delete Score Error:", error.message);
+    console.error("Delete score error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
 });
-
 
 module.exports = router;

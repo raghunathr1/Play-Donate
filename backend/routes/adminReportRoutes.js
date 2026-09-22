@@ -1,342 +1,292 @@
 const express = require("express");
-
-const User = require("../models/User");
-const Charity = require("../models/Charity");
-const Draw = require("../models/Draw");
-const DrawResult = require("../models/DrawResult");
-const Donation = require("../models/Donation");
+const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
+const supabase = require("../config/supabase");
 
-const router = express.Router();
-
-// GET ADMIN REPORTS
-// GET /api/admin/reports
-// ADMIN ONLY
-
+// GET - Admin reports
 router.get(
   "/",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      // ==================================================
-      // USER STATISTICS
-      // ==================================================
+      // -----------------------------
+      // USERS
+      // -----------------------------
 
-      const totalUsers =
-        await User.countDocuments();
+      const { data: users, error: usersError } = await supabase
+        .from("users")
+        .select(
+          "id, role, subscription_status, subscription_plan"
+        );
 
-      const activeSubscriptions =
-        await User.countDocuments({
-          subscriptionStatus: "Active",
+      if (usersError) {
+        console.error("Users report error:", usersError);
+
+        return res.status(500).json({
+          message: "Failed to fetch user report",
         });
+      }
 
-      const monthlySubscriptions =
-        await User.countDocuments({
-          subscriptionStatus: "Active",
-          subscriptionPlan: "Monthly",
+      const allUsers = users || [];
+
+      const totalUsers = allUsers.length;
+
+      const activeSubscriptions = allUsers.filter(
+        (user) => user.subscription_status === "Active"
+      ).length;
+
+      const monthlyPlans = allUsers.filter(
+        (user) =>
+          user.subscription_status === "Active" &&
+          user.subscription_plan === "Monthly"
+      ).length;
+
+      const yearlyPlans = allUsers.filter(
+        (user) =>
+          user.subscription_status === "Active" &&
+          user.subscription_plan === "Yearly"
+      ).length;
+
+      // -----------------------------
+      // CHARITIES
+      // -----------------------------
+
+      const { data: charities, error: charitiesError } =
+        await supabase
+          .from("charities")
+          .select("id, active, featured");
+
+      if (charitiesError) {
+        console.error(
+          "Charities report error:",
+          charitiesError
+        );
+
+        return res.status(500).json({
+          message: "Failed to fetch charity report",
         });
+      }
 
-      const yearlySubscriptions =
-        await User.countDocuments({
-          subscriptionStatus: "Active",
-          subscriptionPlan: "Yearly",
+      const allCharities = charities || [];
+
+      const totalCharities = allCharities.length;
+
+      const activeCharities = allCharities.filter(
+        (charity) => charity.active === true
+      ).length;
+
+      const featuredCharities = allCharities.filter(
+        (charity) => charity.featured === true
+      ).length;
+
+      // -----------------------------
+      // DRAWS
+      // -----------------------------
+
+      const { data: draws, error: drawsError } = await supabase
+        .from("draws")
+        .select(
+          "id, status, prize_pool, draw_month"
+        );
+
+      if (drawsError) {
+        console.error("Draws report error:", drawsError);
+
+        return res.status(500).json({
+          message: "Failed to fetch draw report",
         });
+      }
 
-      // ==================================================
-      // CHARITY STATISTICS
-      // ==================================================
+      const allDraws = draws || [];
 
-      const totalCharities =
-        await Charity.countDocuments();
+      const totalDraws = allDraws.length;
 
-      const activeCharities =
-        await Charity.countDocuments({
-          isActive: true,
+      const publishedDraws = allDraws.filter(
+        (draw) => draw.status === "Published"
+      ).length;
+
+      // -----------------------------
+      // WINNERS
+      // -----------------------------
+
+      const { data: winners, error: winnersError } =
+        await supabase
+          .from("draw_results")
+          .select(
+            "id, prize_amount, verification_status, payment_status, matched_numbers"
+          );
+
+      if (winnersError) {
+        console.error(
+          "Winners report error:",
+          winnersError
+        );
+
+        return res.status(500).json({
+          message: "Failed to fetch winner report",
         });
+      }
 
-      const featuredCharities =
-        await Charity.countDocuments({
-          isFeatured: true,
-          isActive: true,
+      const allWinners = winners || [];
+
+      const totalWinners = allWinners.length;
+
+      const pendingVerification = allWinners.filter(
+        (winner) =>
+          winner.verification_status === "Pending"
+      ).length;
+
+      const approvedWinners = allWinners.filter(
+        (winner) =>
+          winner.verification_status === "Approved"
+      ).length;
+
+      const paidWinners = allWinners.filter(
+        (winner) =>
+          winner.payment_status === "Paid"
+      ).length;
+
+      const totalPrizeAmount = allWinners.reduce(
+        (total, winner) =>
+          total + Number(winner.prize_amount || 0),
+        0
+      );
+
+      // -----------------------------
+      // DONATIONS
+      // -----------------------------
+
+      const { data: donations, error: donationsError } =
+        await supabase
+          .from("donations")
+          .select(
+            "id, user_id, charity_id, amount, status, created_at, charities(id, name)"
+          );
+
+      if (donationsError) {
+        console.error(
+          "Donations report error:",
+          donationsError
+        );
+
+        return res.status(500).json({
+          message: "Failed to fetch donation report",
         });
+      }
 
-      // ==================================================
-      // DRAW STATISTICS
-      // ==================================================
+      const allDonations = donations || [];
 
-      const totalDraws =
-        await Draw.countDocuments();
+      const totalDonations = allDonations.length;
 
-      const publishedDraws =
-        await Draw.countDocuments({
-          status: "Published",
-        });
+      const paidDonations = allDonations.filter(
+        (donation) => donation.status === "Paid"
+      );
 
-      // ==================================================
-      // WINNER STATISTICS
-      // ==================================================
+      const pendingDonations = allDonations.filter(
+        (donation) => donation.status === "Pending"
+      );
 
-      const totalWinners =
-        await DrawResult.countDocuments();
+      const failedDonations = allDonations.filter(
+        (donation) => donation.status === "Failed"
+      );
 
-      const pendingVerification =
-        await DrawResult.countDocuments({
-          verificationStatus: "Pending",
-        });
+      const totalDonated = paidDonations.reduce(
+        (total, donation) =>
+          total + Number(donation.amount || 0),
+        0
+      );
 
-      const approvedWinners =
-        await DrawResult.countDocuments({
-          verificationStatus: "Approved",
-        });
+      const uniqueDonorIds = new Set(
+        paidDonations
+          .map((donation) => donation.user_id)
+          .filter(Boolean)
+      );
 
-      const paidWinners =
-        await DrawResult.countDocuments({
-          paymentStatus: "Paid",
-        });
+      const totalDonors = uniqueDonorIds.size;
 
-      // ==================================================
-      // PRIZE STATISTICS
-      // ==================================================
+      // -----------------------------
+      // CHARITY-WISE DONATIONS
+      // -----------------------------
 
-      const prizeResult =
-        await DrawResult.aggregate([
-          {
-            $group: {
-              _id: null,
+      const charityDonationMap = {};
 
-              totalPrize: {
-                $sum: "$prizeAmount",
-              },
-            },
-          },
-        ]);
+      for (const donation of paidDonations) {
+        const charityId = donation.charity_id;
 
-      const totalPrizeAmount =
-        prizeResult.length > 0
-          ? prizeResult[0].totalPrize
-          : 0;
+        const charityName =
+          donation.charities?.name || "Unknown Charity";
 
-      // ==================================================
-      // DONATION STATISTICS
-      // ==================================================
+        if (!charityDonationMap[charityId]) {
+          charityDonationMap[charityId] = {
+            charityId,
+            charityName,
+            donations: 0,
+            amount: 0,
+          };
+        }
 
-      const totalDonations =
-        await Donation.countDocuments();
+        charityDonationMap[charityId].donations += 1;
 
-      const paidDonations =
-        await Donation.countDocuments({
-          status: "Paid",
-        });
+        charityDonationMap[charityId].amount += Number(
+          donation.amount || 0
+        );
+      }
 
-      const pendingDonations =
-        await Donation.countDocuments({
-          status: "Pending",
-        });
+      const charityWiseDonations = Object.values(
+        charityDonationMap
+      ).sort((a, b) => b.amount - a.amount);
 
-      const failedDonations =
-        await Donation.countDocuments({
-          status: "Failed",
-        });
-
-      // ==================================================
-      // UNIQUE DONORS
-      // ==================================================
-
-      const donorResult =
-        await Donation.aggregate([
-          {
-            $group: {
-              _id: "$user",
-            },
-          },
-          {
-            $count: "totalDonors",
-          },
-        ]);
-
-      const totalDonors =
-        donorResult.length > 0
-          ? donorResult[0].totalDonors
-          : 0;
-
-      // ==================================================
-      // TOTAL DONATION AMOUNT
-      // Only PAID donations are counted as actual impact.
-      // ==================================================
-
-      const donationAmountResult =
-        await Donation.aggregate([
-          {
-            $match: {
-              status: "Paid",
-            },
-          },
-          {
-            $group: {
-              _id: null,
-
-              totalAmount: {
-                $sum: "$amount",
-              },
-            },
-          },
-        ]);
-
-      const totalDonationAmount =
-        donationAmountResult.length > 0
-          ? donationAmountResult[0]
-              .totalAmount
-          : 0;
-
-      // ==================================================
-      // CHARITY-WISE DONATION REPORT
-      // ==================================================
-
-      const charityDonationResult =
-        await Donation.aggregate([
-          {
-            $match: {
-              status: "Paid",
-            },
-          },
-
-          {
-            $group: {
-              _id: "$charity",
-
-              totalAmount: {
-                $sum: "$amount",
-              },
-
-              donationCount: {
-                $sum: 1,
-              },
-            },
-          },
-
-          {
-            $lookup: {
-              from: "charities",
-
-              localField: "_id",
-
-              foreignField: "_id",
-
-              as: "charity",
-            },
-          },
-
-          {
-            $unwind: {
-              path: "$charity",
-              preserveNullAndEmptyArrays: true,
-            },
-          },
-
-          {
-            $project: {
-              _id: 1,
-
-              charityName: {
-                $ifNull: [
-                  "$charity.name",
-                  "Unknown Charity",
-                ],
-              },
-
-              totalAmount: 1,
-
-              donationCount: 1,
-            },
-          },
-
-          {
-            $sort: {
-              totalAmount: -1,
-            },
-          },
-        ]);
-
-      // ==================================================
+      // -----------------------------
       // RESPONSE
-      // ==================================================
+      // -----------------------------
 
-      res.status(200).json({
-        reports: {
-          // ==================================================
-          // USERS
-          // ==================================================
+      return res.json({
+        users: {
+          total: totalUsers,
+          activeSubscriptions,
+          monthlyPlans,
+          yearlyPlans,
+        },
 
-          users: {
-            totalUsers,
-            activeSubscriptions,
-            monthlySubscriptions,
-            yearlySubscriptions,
-          },
+        charities: {
+          total: totalCharities,
+          active: activeCharities,
+          featured: featuredCharities,
+        },
 
-          // ==================================================
-          // CHARITIES
-          // ==================================================
+        draws: {
+          total: totalDraws,
+          published: publishedDraws,
+        },
 
-          charities: {
-            totalCharities,
-            activeCharities,
-            featuredCharities,
-          },
+        winners: {
+          total: totalWinners,
+          pendingVerification,
+          approved: approvedWinners,
+          paid: paidWinners,
+        },
 
-          // ==================================================
-          // DRAWS
-          // ==================================================
+        prizes: {
+          totalPrizeAmount,
+        },
 
-          draws: {
-            totalDraws,
-            publishedDraws,
-          },
-
-          // ==================================================
-          // WINNERS
-          // ==================================================
-
-          winners: {
-            totalWinners,
-            pendingVerification,
-            approvedWinners,
-            paidWinners,
-          },
-
-          // ==================================================
-          // PRIZES
-          // ==================================================
-
-          prizes: {
-            totalPrizeAmount,
-          },
-
-          // ==================================================
-          // DONATIONS
-          // ==================================================
-
-          donations: {
-            totalDonations,
-            paidDonations,
-            pendingDonations,
-            failedDonations,
-            totalDonors,
-            totalDonationAmount,
-            charityWise: charityDonationResult,
-          },
+        donations: {
+          total: totalDonations,
+          paid: paidDonations.length,
+          pending: pendingDonations.length,
+          failed: failedDonations.length,
+          totalDonors,
+          totalDonated,
+          charityWise: charityWiseDonations,
         },
       });
     } catch (error) {
-      console.error(
-        "Admin Reports Error:",
-        error.message
-      );
+      console.error("Admin reports error:", error);
 
-      res.status(500).json({
+      return res.status(500).json({
         message: "Server error",
       });
     }

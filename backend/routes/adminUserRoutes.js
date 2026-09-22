@@ -1,64 +1,73 @@
 const express = require("express");
-
-const User = require("../models/User");
+const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
+const supabase = require("../config/supabase");
 
-const router = express.Router();
-
-
-// =====================================================
-// GET ALL USERS
-// Admin only
-// =====================================================
-
+// GET - All users
 router.get(
   "/",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      const users = await User.find()
-        .select(
-          "-password -stripeCustomerId -stripeSubscriptionId -stripePriceId"
-        )
-        .populate(
-          "charity",
-          "name"
-        )
-        .sort({
-          createdAt: -1,
-        });
+      const { data: users, error } = await supabase
+        .from("users")
+        .select(`
+          id,
+          name,
+          email,
+          role,
+          subscription_status,
+          subscription_plan,
+          subscription_start_date,
+          subscription_end_date,
+          charity_id,
+          charity_contribution,
+          created_at,
+          charities (
+            id,
+            name
+          )
+        `)
+        .order("created_at", { ascending: false });
 
-      res.status(200).json({
-        users,
+      if (error) {
+        console.error("Get admin users error:", error);
+
+        return res.status(500).json({
+          message: "Failed to fetch users",
+        });
+      }
+
+      const formattedUsers = (users || []).map((user) => ({
+        ...user,
+        charity: user.charities || null,
+        charities: undefined,
+      }));
+
+      return res.json({
+        users: formattedUsers,
       });
     } catch (error) {
-      console.error(
-        "Get All Users Error:",
-        error.message
-      );
+      console.error("Get admin users error:", error);
 
-      res.status(500).json({
+      return res.status(500).json({
         message: "Server error",
       });
     }
   }
 );
 
-
-// =====================================================
-// UPDATE USER SUBSCRIPTION STATUS
-// Admin only
-// =====================================================
-
+// PUT - Update subscription status
 router.put(
   "/:id/subscription-status",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
+      const { id } = req.params;
       const { status } = req.body;
 
       const allowedStatuses = [
@@ -70,52 +79,87 @@ router.put(
 
       if (!allowedStatuses.includes(status)) {
         return res.status(400).json({
-          message:
-            "Invalid subscription status",
+          message: "Invalid subscription status",
         });
       }
 
-      const user = await User.findById(
-        req.params.id
-      );
+      const { data: existingUser, error: findError } =
+        await supabase
+          .from("users")
+          .select("id")
+          .eq("id", id)
+          .maybeSingle();
 
-      if (!user) {
+      if (findError) {
+        console.error("Find user error:", findError);
+
+        return res.status(500).json({
+          message: "Failed to find user",
+        });
+      }
+
+      if (!existingUser) {
         return res.status(404).json({
           message: "User not found",
         });
       }
 
-      user.subscriptionStatus = status;
+      const { data: updatedUser, error: updateError } =
+        await supabase
+          .from("users")
+          .update({
+            subscription_status: status,
+          })
+          .eq("id", id)
+          .select(`
+            id,
+            name,
+            email,
+            role,
+            subscription_status,
+            subscription_plan,
+            subscription_start_date,
+            subscription_end_date,
+            charity_id,
+            charity_contribution,
+            created_at,
+            charities (
+              id,
+              name
+            )
+          `)
+          .single();
 
-      await user.save();
+      if (updateError) {
+        console.error(
+          "Update subscription status error:",
+          updateError
+        );
 
-      const updatedUser =
-        await User.findById(user._id)
-          .select(
-            "-password -stripeCustomerId -stripeSubscriptionId -stripePriceId"
-          )
-          .populate(
-            "charity",
-            "name"
-          );
+        return res.status(500).json({
+          message: "Failed to update subscription status",
+        });
+      }
 
-      res.status(200).json({
-        message:
-          "Subscription status updated successfully",
-        user: updatedUser,
+      return res.json({
+        message: "Subscription status updated successfully",
+        user: {
+          ...updatedUser,
+          charity: updatedUser.charities || null,
+          charities: undefined,
+        },
       });
     } catch (error) {
       console.error(
-        "Update User Subscription Error:",
-        error.message
+        "Update subscription status error:",
+        error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         message: "Server error",
       });
     }
   }
 );
-
 
 module.exports = router;

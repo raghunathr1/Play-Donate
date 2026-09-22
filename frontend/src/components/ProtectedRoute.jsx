@@ -24,13 +24,16 @@ function ProtectedRoute({ children }) {
           "/auth/me"
         );
 
-        if (data.user) {
+        // /auth/me directly user object return karta hai
+        if (data?.id) {
           localStorage.setItem(
             "digitalHeroesUser",
-            JSON.stringify(data.user)
+            JSON.stringify(data)
           );
 
           setAuthenticated(true);
+        } else {
+          setAuthenticated(false);
         }
       } catch (error) {
         console.error(

@@ -1,195 +1,197 @@
 const dns = require("dns");
+
+// =====================================================
+// DNS
+// =====================================================
+
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+const dotenv = require("dotenv");
 
-const connectDB = require("./config/db");
+// =====================================================
+// LOAD ENVIRONMENT VARIABLES
+// =====================================================
 
-// ==================================================
+dotenv.config({ override: true });
+
+const app = express();
+
+// =====================================================
+// CORS
+// =====================================================
+
+app.use(
+  cors({
+    origin: [
+      process.env.FRONTEND_URL,
+      "http://localhost:5173",
+      "https://play-donate-six.vercel.app",
+    ],
+    credentials: true,
+  })
+);
+
+// =====================================================
 // ROUTES
-// ==================================================
+// =====================================================
+
+const webhookRoutes = require("./routes/webhookRoutes");
 
 const authRoutes = require("./routes/authRoutes");
 const scoreRoutes = require("./routes/scoreRoutes");
 const charityRoutes = require("./routes/charityRoutes");
-
-const subscriptionRoutes = require("./routes/subscriptionRoutes");
-const stripeWebhookRoutes = require("./routes/stripeWebhookRoutes");
-
 const donationRoutes = require("./routes/donationRoutes");
-
 const drawRoutes = require("./routes/drawRoutes");
-const winnerRoutes = require("./routes/winnerRoutes");
 
-const adminWinnerRoutes = require("./routes/adminWinnerRoutes");
 const adminUserRoutes = require("./routes/adminUserRoutes");
+const adminWinnerRoutes = require("./routes/adminWinnerRoutes");
 const adminReportRoutes = require("./routes/adminReportRoutes");
 
-// ==================================================
-// APP
-// ==================================================
+const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const winnerRoutes = require("./routes/winnerRoutes");
 
-const app = express();
-
-// ==================================================
-// CORS
-// ==================================================
-
-app.use(cors());
-
-// ==================================================
+// =====================================================
 // STRIPE WEBHOOK
 // IMPORTANT:
-// Webhook must come BEFORE express.json()
-// because Stripe requires the raw request body.
-// ==================================================
+//
+// This MUST come BEFORE express.json()
+//
+// Stripe needs the RAW request body to verify
+// the webhook signature.
+// =====================================================
 
-app.use("/api/stripe/webhook", stripeWebhookRoutes);
+app.use(
+  "/api/stripe/webhook",
+  webhookRoutes
+);
 
-// ==================================================
+// =====================================================
 // JSON BODY PARSER
-// ==================================================
+// =====================================================
 
 app.use(express.json());
 
-// ==================================================
-// AUTH ROUTES
-// ==================================================
+// =====================================================
+// API ROUTES
+// =====================================================
 
+// Authentication
 app.use(
   "/api/auth",
   authRoutes
 );
 
-// ==================================================
-// SCORE ROUTES
-// ==================================================
-
+// Scores
 app.use(
   "/api/scores",
   scoreRoutes
 );
 
-// ==================================================
-// CHARITY ROUTES
-// ==================================================
-
+// Charities
 app.use(
   "/api/charities",
   charityRoutes
 );
 
-// ==================================================
-// SUBSCRIPTION ROUTES
-// ==================================================
-
-app.use(
-  "/api/subscriptions",
-  subscriptionRoutes
-);
-
-// ==================================================
-// DONATION ROUTES
-// ==================================================
-
+// Donations
 app.use(
   "/api/donations",
   donationRoutes
 );
 
-// ==================================================
-// DRAW ROUTES
-// ==================================================
-
+// Draws
 app.use(
   "/api/draws",
   drawRoutes
 );
 
-// ==================================================
-// USER WINNER ROUTES
-// ==================================================
-
-app.use(
-  "/api/winners",
-  winnerRoutes
-);
-
-// ==================================================
-// ADMIN WINNER ROUTES
-// ==================================================
-
-app.use(
-  "/api/admin/winners",
-  adminWinnerRoutes
-);
-
-// ==================================================
-// ADMIN USER ROUTES
-// ==================================================
-
+// Admin Users
 app.use(
   "/api/admin/users",
   adminUserRoutes
 );
 
-// ==================================================
-// ADMIN REPORT ROUTES
-// ==================================================
+// Admin Winners
+app.use(
+  "/api/admin/winners",
+  adminWinnerRoutes
+);
 
+// Admin Reports
 app.use(
   "/api/admin/reports",
   adminReportRoutes
 );
 
-// ==================================================
-// ROOT API
-// ==================================================
+// Subscriptions
+app.use(
+  "/api/subscriptions",
+  subscriptionRoutes
+);
+
+// Winners
+app.use(
+  "/api/winners",
+  winnerRoutes
+);
+
+// =====================================================
+// HEALTH CHECK
+// =====================================================
 
 app.get("/", (req, res) => {
   res.json({
-    message: "Digital Heroes API is running",
+    message: "Play-Donate API is running",
+    database: "Supabase",
+    status: "OK",
   });
 });
 
-// ==================================================
+// =====================================================
 // 404 HANDLER
-// ==================================================
+// =====================================================
 
 app.use((req, res) => {
   res.status(404).json({
     message: "API route not found",
+    path: req.originalUrl,
   });
 });
 
-// ==================================================
-// PORT
-// ==================================================
+// =====================================================
+// GLOBAL ERROR HANDLER
+// =====================================================
+
+app.use((error, req, res, next) => {
+  console.error(
+    "Global Error:",
+    error
+  );
+
+  res.status(500).json({
+    message: "Internal server error",
+  });
+});
+
+// =====================================================
+// START SERVER
+// =====================================================
 
 const PORT =
   process.env.PORT || 5000;
 
-// ==================================================
-// START SERVER
-// ==================================================
+app.listen(PORT, () => {
+  console.log(
+    `Server is Running on Port ${PORT}`
+  );
 
-const startServer = async () => {
-  try {
-    await connectDB();
+  console.log(
+    "Database: Supabase"
+  );
 
-    app.listen(PORT, () => {
-      console.log(
-        `Server is Running on Port ${PORT}`
-      );
-    });
-  } catch (error) {
-    console.error(
-      "Server Startup Error:",
-      error.message
-    );
-  }
-};
-
-startServer();
+  console.log(
+    "Stripe Webhook: /api/stripe/webhook"
+  );
+});

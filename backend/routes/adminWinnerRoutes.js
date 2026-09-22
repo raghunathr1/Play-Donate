@@ -1,209 +1,325 @@
 const express = require("express");
-
-const DrawResult = require("../models/DrawResult");
+const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
+const supabase = require("../config/supabase");
 
-const router = express.Router();
-
-
-// =====================================================
-// GET ALL WINNERS
-// Admin only
-// =====================================================
-
+// GET - All winners
 router.get(
   "/",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      const winners = await DrawResult.find()
-        .populate(
-          "user",
-          "name email"
-        )
-        .populate(
-          "draw",
-          "drawMonth winningNumbers status"
-        )
-        .sort({
-          createdAt: -1,
-        });
+      const { data: winners, error } = await supabase
+        .from("draw_results")
+        .select(`
+          *,
+          users (
+            id,
+            name,
+            email
+          ),
+          draws (
+            id,
+            draw_month,
+            winning_numbers,
+            status
+          )
+        `)
+        .order("created_at", { ascending: false });
 
-      res.status(200).json({
-        winners,
+      if (error) {
+        console.error("Get winners error:", error);
+
+        return res.status(500).json({
+          message: "Failed to fetch winners",
+        });
+      }
+
+      const formattedWinners = (winners || []).map((winner) => ({
+        ...winner,
+        user: winner.users || null,
+        draw: winner.draws || null,
+        users: undefined,
+        draws: undefined,
+      }));
+
+      return res.json({
+        winners: formattedWinners,
       });
     } catch (error) {
-      console.error(
-        "Get All Winners Error:",
-        error.message
-      );
+      console.error("Get winners error:", error);
 
-      res.status(500).json({
+      return res.status(500).json({
         message: "Server error",
       });
     }
   }
 );
 
-
-// =====================================================
-// APPROVE WINNER
-// Admin only
-// =====================================================
-
+// PUT - Approve winner
 router.put(
   "/:id/approve",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      const result =
-        await DrawResult.findById(
-          req.params.id
-        );
+      const { id } = req.params;
 
-      if (!result) {
+      const { data: winner, error: findError } =
+        await supabase
+          .from("draw_results")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+
+      if (findError) {
+        console.error("Find winner error:", findError);
+
+        return res.status(500).json({
+          message: "Failed to find winner",
+        });
+      }
+
+      if (!winner) {
         return res.status(404).json({
           message: "Winner not found",
         });
       }
 
-      result.verificationStatus =
-        "Approved";
+      if (winner.verification_status === "Approved") {
+        return res.status(400).json({
+          message: "Winner is already approved",
+        });
+      }
 
-      result.paymentStatus =
-        "Pending";
+      const { data: updatedWinner, error: updateError } =
+        await supabase
+          .from("draw_results")
+          .update({
+            verification_status: "Approved",
+            payment_status: "Pending",
+          })
+          .eq("id", id)
+          .select(`
+            *,
+            users (
+              id,
+              name,
+              email
+            ),
+            draws (
+              id,
+              draw_month,
+              winning_numbers,
+              status
+            )
+          `)
+          .single();
 
-      await result.save();
+      if (updateError) {
+        console.error("Approve winner error:", updateError);
 
-      res.status(200).json({
-        message:
-          "Winner approved successfully",
+        return res.status(500).json({
+          message: "Failed to approve winner",
+        });
+      }
 
-        winning: result,
+      return res.json({
+        message: "Winner approved successfully",
+        winner: {
+          ...updatedWinner,
+          user: updatedWinner.users || null,
+          draw: updatedWinner.draws || null,
+          users: undefined,
+          draws: undefined,
+        },
       });
     } catch (error) {
-      console.error(
-        "Approve Winner Error:",
-        error.message
-      );
+      console.error("Approve winner error:", error);
 
-      res.status(500).json({
+      return res.status(500).json({
         message: "Server error",
       });
     }
   }
 );
 
-
-// =====================================================
-// REJECT WINNER
-// Admin only
-// =====================================================
-
+// PUT - Reject winner
 router.put(
   "/:id/reject",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      const result =
-        await DrawResult.findById(
-          req.params.id
-        );
+      const { id } = req.params;
 
-      if (!result) {
+      const { data: winner, error: findError } =
+        await supabase
+          .from("draw_results")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+
+      if (findError) {
+        console.error("Find winner error:", findError);
+
+        return res.status(500).json({
+          message: "Failed to find winner",
+        });
+      }
+
+      if (!winner) {
         return res.status(404).json({
           message: "Winner not found",
         });
       }
 
-      result.verificationStatus =
-        "Rejected";
+      const { data: updatedWinner, error: updateError } =
+        await supabase
+          .from("draw_results")
+          .update({
+            verification_status: "Rejected",
+            payment_status: "Pending",
+          })
+          .eq("id", id)
+          .select(`
+            *,
+            users (
+              id,
+              name,
+              email
+            ),
+            draws (
+              id,
+              draw_month,
+              winning_numbers,
+              status
+            )
+          `)
+          .single();
 
-      result.paymentStatus =
-        "Pending";
+      if (updateError) {
+        console.error("Reject winner error:", updateError);
 
-      await result.save();
+        return res.status(500).json({
+          message: "Failed to reject winner",
+        });
+      }
 
-      res.status(200).json({
-        message:
-          "Winner rejected successfully",
-
-        winning: result,
+      return res.json({
+        message: "Winner rejected successfully",
+        winner: {
+          ...updatedWinner,
+          user: updatedWinner.users || null,
+          draw: updatedWinner.draws || null,
+          users: undefined,
+          draws: undefined,
+        },
       });
     } catch (error) {
-      console.error(
-        "Reject Winner Error:",
-        error.message
-      );
+      console.error("Reject winner error:", error);
 
-      res.status(500).json({
+      return res.status(500).json({
         message: "Server error",
       });
     }
   }
 );
 
-
-// =====================================================
-// MARK WINNER PAYMENT AS PAID
-// Admin only
-// =====================================================
-
+// PUT - Mark winner as paid
 router.put(
   "/:id/mark-paid",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      const result =
-        await DrawResult.findById(
-          req.params.id
-        );
+      const { id } = req.params;
 
-      if (!result) {
+      const { data: winner, error: findError } =
+        await supabase
+          .from("draw_results")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+
+      if (findError) {
+        console.error("Find winner error:", findError);
+
+        return res.status(500).json({
+          message: "Failed to find winner",
+        });
+      }
+
+      if (!winner) {
         return res.status(404).json({
           message: "Winner not found",
         });
       }
 
-      if (
-        result.verificationStatus !==
-        "Approved"
-      ) {
+      if (winner.verification_status !== "Approved") {
         return res.status(400).json({
-          message:
-            "Winner must be approved before payment",
+          message: "Winner must be approved before marking as paid",
         });
       }
 
-      result.paymentStatus =
-        "Paid";
+      if (winner.payment_status === "Paid") {
+        return res.status(400).json({
+          message: "Winner is already marked as paid",
+        });
+      }
 
-      await result.save();
+      const { data: updatedWinner, error: updateError } =
+        await supabase
+          .from("draw_results")
+          .update({
+            payment_status: "Paid",
+          })
+          .eq("id", id)
+          .select(`
+            *,
+            users (
+              id,
+              name,
+              email
+            ),
+            draws (
+              id,
+              draw_month,
+              winning_numbers,
+              status
+            )
+          `)
+          .single();
 
-      res.status(200).json({
-        message:
-          "Winner payment marked as paid",
+      if (updateError) {
+        console.error("Mark winner paid error:", updateError);
 
-        winning: result,
+        return res.status(500).json({
+          message: "Failed to mark winner as paid",
+        });
+      }
+
+      return res.json({
+        message: "Winner marked as paid successfully",
+        winner: {
+          ...updatedWinner,
+          user: updatedWinner.users || null,
+          draw: updatedWinner.draws || null,
+          users: undefined,
+          draws: undefined,
+        },
       });
     } catch (error) {
-      console.error(
-        "Mark Winner Paid Error:",
-        error.message
-      );
+      console.error("Mark winner paid error:", error);
 
-      res.status(500).json({
+      return res.status(500).json({
         message: "Server error",
       });
     }
   }
 );
-
 
 module.exports = router;

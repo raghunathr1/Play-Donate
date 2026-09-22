@@ -17,8 +17,8 @@ import Signup from "./pages/auth/Signup";
 // USER PAGES
 // ==================================================
 
-import Subscription from "./pages/user/Subscription";
 import Dashboard from "./pages/user/Dashboard";
+import Subscription from "./pages/user/Subscription";
 import Scores from "./pages/user/Scores";
 import Charities from "./pages/user/Charities";
 import Draws from "./pages/user/Draws";
@@ -59,11 +59,6 @@ function App() {
           element={<Home />}
         />
 
-
-        {/* ==================================================
-            AUTHENTICATION ROUTES
-        ================================================== */}
-
         <Route
           path="/login"
           element={<Login />}
@@ -77,7 +72,7 @@ function App() {
 
         {/* ==================================================
             USER ROUTES
-            Login Required
+            LOGIN REQUIRED
         ================================================== */}
 
         <Route
@@ -107,43 +102,78 @@ function App() {
           }
         />
 
-
         {/* ==================================================
-            SUBSCRIBER ROUTES
-            Active Subscription Required
+            SCORES
+            LOGIN REQUIRED
+
+            IMPORTANT:
+            Scores ko SubscriberRoute ke andar mat rakho.
+            User "Not Subscribed" hone par bhi scores manage
+            kar sakta hai.
         ================================================== */}
 
         <Route
           path="/scores"
           element={
-            <SubscriberRoute>
+            <ProtectedRoute>
               <Scores />
-            </SubscriberRoute>
+            </ProtectedRoute>
           }
         />
+
+        {/* ==================================================
+            DRAWS
+            LOGIN REQUIRED
+        ================================================== */}
 
         <Route
           path="/draws"
           element={
-            <SubscriberRoute>
+            <ProtectedRoute>
               <Draws />
-            </SubscriberRoute>
+            </ProtectedRoute>
           }
         />
+
+        {/* ==================================================
+            WINNINGS
+            LOGIN REQUIRED
+        ================================================== */}
 
         <Route
           path="/winnings"
           element={
-            <SubscriberRoute>
+            <ProtectedRoute>
               <Winnings />
-            </SubscriberRoute>
+            </ProtectedRoute>
           }
         />
 
 
         {/* ==================================================
+            SUBSCRIBER ONLY ROUTES
+
+            Future mein jis page ko ACTIVE subscription
+            required karna ho, usko yahan rakhenge.
+        ================================================== */}
+
+        {/* Example:
+
+        <Route
+          path="/subscriber-example"
+          element={
+            <SubscriberRoute>
+              <SubscriberExample />
+            </SubscriberRoute>
+          }
+        />
+
+        */}
+
+
+        {/* ==================================================
             ADMIN ROUTES
-            Admin Role Required
+            ADMIN ROLE REQUIRED
         ================================================== */}
 
         <Route
@@ -202,7 +232,7 @@ function App() {
 
 
         {/* ==================================================
-            FALLBACK ROUTE
+            FALLBACK
         ================================================== */}
 
         <Route
@@ -215,6 +245,5 @@ function App() {
     </BrowserRouter>
   );
 }
-
 
 export default App;

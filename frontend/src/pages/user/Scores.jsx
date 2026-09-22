@@ -30,14 +30,10 @@ function Scores() {
 
       setScores(data.scores || []);
     } catch (error) {
-      console.error(
-        "Load Scores Error:",
-        error
-      );
+      console.error("Load Scores Error:", error);
 
       setError(
-        error.message ||
-          "Unable to load your scores."
+        error.message || "Unable to load your scores."
       );
     } finally {
       setLoading(false);
@@ -59,9 +55,7 @@ function Scores() {
     setMessage("");
 
     if (!score || !date) {
-      setError(
-        "Please enter both score and date."
-      );
+      setError("Please enter both score and date.");
       return;
     }
 
@@ -81,6 +75,10 @@ function Scores() {
     try {
       setSaving(true);
 
+      // =====================================================
+      // UPDATE
+      // =====================================================
+
       if (editingId) {
         const data = await apiRequest(
           `/scores/${editingId}`,
@@ -88,32 +86,36 @@ function Scores() {
             method: "PUT",
             body: JSON.stringify({
               score: scoreNumber,
-              date,
+              scoreDate: date,
             }),
           }
         );
 
         setMessage(
-          data.message ||
-            "Score updated successfully."
+          data.message || "Score updated successfully."
         );
 
         setEditingId(null);
-      } else {
+      }
+
+      // =====================================================
+      // ADD
+      // =====================================================
+
+      else {
         const data = await apiRequest(
           "/scores",
           {
             method: "POST",
             body: JSON.stringify({
               score: scoreNumber,
-              date,
+              scoreDate: date,
             }),
           }
         );
 
         setMessage(
-          data.message ||
-            "Score added successfully."
+          data.message || "Score added successfully."
         );
       }
 
@@ -122,14 +124,10 @@ function Scores() {
 
       await loadScores();
     } catch (error) {
-      console.error(
-        "Save Score Error:",
-        error
-      );
+      console.error("Save Score Error:", error);
 
       setError(
-        error.message ||
-          "Unable to save score."
+        error.message || "Unable to save score."
       );
     } finally {
       setSaving(false);
@@ -144,12 +142,17 @@ function Scores() {
     setError("");
     setMessage("");
 
-    setEditingId(item._id);
+    // Supabase uses "id", NOT "_id"
+    setEditingId(item.id);
+
     setScore(item.score);
 
-    const formattedDate = new Date(item.date)
-      .toISOString()
-      .split("T")[0];
+    // Supabase uses "score_date", NOT "date"
+    const formattedDate = item.score_date
+      ? new Date(item.score_date)
+          .toISOString()
+          .split("T")[0]
+      : "";
 
     setDate(formattedDate);
 
@@ -195,20 +198,15 @@ function Scores() {
       );
 
       setMessage(
-        data.message ||
-          "Score deleted successfully."
+        data.message || "Score deleted successfully."
       );
 
       await loadScores();
     } catch (error) {
-      console.error(
-        "Delete Score Error:",
-        error
-      );
+      console.error("Delete Score Error:", error);
 
       setError(
-        error.message ||
-          "Unable to delete score."
+        error.message || "Unable to delete score."
       );
     } finally {
       setDeletingId(null);
@@ -222,13 +220,14 @@ function Scores() {
   const formatDate = (value) => {
     if (!value) return "—";
 
-    return new Date(
-      value
-    ).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return new Date(value).toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
   };
 
   // =========================================================
@@ -240,7 +239,10 @@ function Scores() {
       <div className="scores-page">
         <div className="scores-loading">
           <div className="scores-spinner"></div>
-          <p>Loading your scores...</p>
+
+          <p>
+            Loading your scores...
+          </p>
         </div>
       </div>
     );
@@ -253,15 +255,22 @@ function Scores() {
   return (
     <div className="scores-page">
 
-      {/* HEADER */}
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
 
       <header className="scores-header">
+
         <div className="scores-brand">
+
           <div className="scores-brand-mark">
             DH
           </div>
 
-          <span>Digital Heroes</span>
+          <span>
+            Digital Heroes
+          </span>
+
         </div>
 
         <a
@@ -270,12 +279,17 @@ function Scores() {
         >
           ← Dashboard
         </a>
+
       </header>
 
-      {/* HERO */}
+      {/* =====================================================
+          HERO
+      ===================================================== */}
 
       <section className="scores-hero">
+
         <div>
+
           <span className="scores-label">
             YOUR PERFORMANCE
           </span>
@@ -292,16 +306,20 @@ function Scores() {
             used for your monthly draw
             participation.
           </p>
+
         </div>
 
         <div className="scores-hero-icon">
           45
         </div>
+
       </section>
 
       <main className="scores-container">
 
-        {/* MESSAGES */}
+        {/* ===================================================
+            MESSAGES
+        =================================================== */}
 
         {error && (
           <div className="scores-message error">
@@ -315,12 +333,16 @@ function Scores() {
           </div>
         )}
 
-        {/* FORM */}
+        {/* ===================================================
+            FORM
+        =================================================== */}
 
         <section className="score-form-card">
 
           <div className="score-form-heading">
+
             <div>
+
               <span className="section-label">
                 SCORE ENTRY
               </span>
@@ -335,11 +357,13 @@ function Scores() {
                 Enter a Stableford score
                 between 1 and 45.
               </p>
+
             </div>
 
             <div className="score-form-icon">
               {editingId ? "✎" : "+"}
             </div>
+
           </div>
 
           <form
@@ -347,7 +371,10 @@ function Scores() {
             onSubmit={handleSubmit}
           >
 
+            {/* SCORE */}
+
             <div className="score-field">
+
               <label htmlFor="score">
                 Stableford Score
               </label>
@@ -368,9 +395,13 @@ function Scores() {
               <span className="field-hint">
                 Enter your score
               </span>
+
             </div>
 
+            {/* DATE */}
+
             <div className="score-field">
+
               <label htmlFor="date">
                 Score Date
               </label>
@@ -387,9 +418,13 @@ function Scores() {
               <span className="field-hint">
                 One score per date
               </span>
+
             </div>
 
+            {/* ACTIONS */}
+
             <div className="score-form-actions">
+
               <button
                 type="submit"
                 className="score-primary-btn"
@@ -406,24 +441,28 @@ function Scores() {
                 <button
                   type="button"
                   className="score-secondary-btn"
-                  onClick={
-                    handleCancelEdit
-                  }
+                  onClick={handleCancelEdit}
                 >
                   Cancel
                 </button>
               )}
+
             </div>
 
           </form>
+
         </section>
 
-        {/* SCORE LIST */}
+        {/* ===================================================
+            SCORE LIST
+        =================================================== */}
 
         <section className="score-list-section">
 
           <div className="score-list-heading">
+
             <div>
+
               <span className="section-label">
                 SCORE HISTORY
               </span>
@@ -431,18 +470,29 @@ function Scores() {
               <h2>
                 Latest Scores
               </h2>
+
             </div>
 
             <div className="score-count">
+
               <strong>
                 {scores.length}
               </strong>
-              <span>/ 5</span>
+
+              <span>
+                / 5
+              </span>
+
             </div>
+
           </div>
 
+          {/* EMPTY */}
+
           {scores.length === 0 ? (
+
             <div className="empty-scores">
+
               <div className="empty-score-icon">
                 +
               </div>
@@ -455,22 +505,31 @@ function Scores() {
                 Add your first Stableford
                 score using the form above.
               </p>
+
             </div>
+
           ) : (
+
             <div className="scores-list">
 
               {scores.map(
                 (item, index) => (
+
                   <div
-                    key={item._id}
+                    key={item.id}
                     className="score-item"
                   >
+
+                    {/* SCORE NUMBER */}
 
                     <div className="score-number">
                       {item.score}
                     </div>
 
+                    {/* INFO */}
+
                     <div className="score-info">
+
                       <span>
                         Score #{index + 1}
                       </span>
@@ -481,10 +540,13 @@ function Scores() {
 
                       <small>
                         {formatDate(
-                          item.date
+                          item.score_date
                         )}
                       </small>
+
                     </div>
+
+                    {/* ACTIONS */}
 
                     <div className="score-actions">
 
@@ -502,17 +564,13 @@ function Scores() {
                         type="button"
                         className="delete-score-btn"
                         onClick={() =>
-                          handleDelete(
-                            item._id
-                          )
+                          handleDelete(item.id)
                         }
                         disabled={
-                          deletingId ===
-                          item._id
+                          deletingId === item.id
                         }
                       >
-                        {deletingId ===
-                        item._id
+                        {deletingId === item.id
                           ? "..."
                           : "Delete"}
                       </button>
@@ -520,15 +578,19 @@ function Scores() {
                     </div>
 
                   </div>
+
                 )
               )}
 
             </div>
+
           )}
 
         </section>
 
-        {/* INFO */}
+        {/* ===================================================
+            INFO
+        =================================================== */}
 
         <section className="scores-info">
 
@@ -537,6 +599,7 @@ function Scores() {
           </div>
 
           <div>
+
             <h3>
               How your scores are used
             </h3>
@@ -549,6 +612,7 @@ function Scores() {
               oldest score is automatically
               removed.
             </p>
+
           </div>
 
         </section>
@@ -560,4 +624,3 @@ function Scores() {
 }
 
 export default Scores;
-

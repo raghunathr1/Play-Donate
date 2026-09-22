@@ -1,559 +1,539 @@
-
 const express = require("express");
-const Stripe = require("stripe");
-
-const User = require("../models/User");
-const Subscription = require("../models/Subscription");
-const Donation = require("../models/Donation");
-
 const router = express.Router();
 
-const stripe = new Stripe(
-  process.env.STRIPE_SECRET_KEY
-);
+const Stripe = require("stripe");
+const supabase = require("../config/supabase");
 
-// ======================================================
-// STRIPE WEBHOOK
-// POST /api/subscriptions/webhook
-// ======================================================
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// IMPORTANT:
+// Stripe webhook route server.js mein express.json()
+// se PEHLE mount hona chahiye.
 
 router.post(
   "/",
   express.raw({ type: "application/json" }),
   async (req, res) => {
-    const signature =
-      req.headers["stripe-signature"];
+    const signature = req.headers["stripe-signature"];
 
     let event;
 
-    // ==================================================
-    // VERIFY STRIPE WEBHOOK
-    // ==================================================
-
     try {
-      event =
-        stripe.webhooks.constructEvent(
-          req.body,
-          signature,
-          process.env.STRIPE_WEBHOOK_SECRET
-        );
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
     } catch (error) {
       console.error(
-        "Webhook Signature Error:",
+        "Stripe webhook signature verification failed:",
         error.message
       );
 
-      return res
-        .status(400)
-        .send(
-          `Webhook Error: ${error.message}`
-        );
+      return res.status(400).send(
+        `Webhook Error: ${error.message}`
+      );
     }
-
-    // ==================================================
-    // PROCESS STRIPE EVENT
-    // ==================================================
 
     try {
       switch (event.type) {
-        // ==================================================
+        // =====================================================
         // CHECKOUT SESSION COMPLETED
-        // Handles:
-        // 1. Subscription checkout
-        // 2. One-time donation checkout
-        // ==================================================
+        // =====================================================
 
         case "checkout.session.completed": {
-          const session =
-            event.data.object;
+          const session = event.data.object;
 
-          // ==================================================
-          // DONATION CHECKOUT
-          // ==================================================
+          // ---------------------------------------------------
+          // DONATION
+          // ---------------------------------------------------
 
-          if (
-            session.mode === "payment"
-          ) {
+          if (session.mode === "payment") {
             const donationId =
               session.metadata?.donationId;
 
             if (!donationId) {
               console.log(
-                "Donation webhook: Missing donationId"
+                "Donation ID not found in Stripe metadata"
               );
-
               break;
             }
 
-            const donation =
-              await Donation.findById(
-                donationId
-              );
+            const paymentStatus =
+              session.payment_status;
 
-            if (!donation) {
+            const donationStatus =
+              paymentStatus === "paid"
+                ? "Paid"
+                : "Pending";
+
+            const { error: donationError } =
+              await supabase
+                .from("donations")
+                .update({
+                  status: donationStatus,
+                  stripe_payment_intent_id:
+                    session.payment_intent || null,
+                })
+                .eq("id", donationId);
+
+            if (donationError) {
+              console.error(
+                "Donation webhook update error:",
+                donationError
+              );
+            } else {
               console.log(
-                "Donation not found:",
-                donationId
+                `Donation ${donationId} updated: ${donationStatus}`
               );
+            }
+          }
 
+          // ---------------------------------------------------
+          // SUBSCRIPTION
+          // ---------------------------------------------------
+
+          if (session.mode === "subscription") {
+            const userId =
+              session.metadata?.userId;
+
+            const plan =
+              session.metadata?.plan;
+
+            const stripeSubscriptionId =
+              session.subscription;
+
+            if (!userId || !stripeSubscriptionId) {
+              console.log(
+                "Subscription metadata is incomplete"
+              );
               break;
             }
 
-            // Save successful payment information
-            donation.status = "Paid";
+            const stripeSubscription =
+              await stripe.subscriptions.retrieve(
+                stripeSubscriptionId
+              );
 
-            donation.stripeCheckoutSessionId =
-              session.id;
+            const subscriptionItem =
+              stripeSubscription.items?.data?.[0];
 
-            if (
-              session.payment_intent
-            ) {
-              donation.stripePaymentIntentId =
-                session.payment_intent;
+            const price =
+              subscriptionItem?.price;
+
+            const amount =
+              price?.unit_amount
+                ? price.unit_amount / 100
+                : 0;
+
+            const currency =
+              price?.currency
+                ? price.currency.toUpperCase()
+                : "INR";
+
+            const startDate =
+              stripeSubscription.start_date
+                ? new Date(
+                    stripeSubscription.start_date * 1000
+                  ).toISOString()
+                : new Date().toISOString();
+
+            const endDate =
+              stripeSubscription.cancel_at
+                ? new Date(
+                    stripeSubscription.cancel_at * 1000
+                  ).toISOString()
+                : stripeSubscription.current_period_end
+                ? new Date(
+                    stripeSubscription.current_period_end *
+                      1000
+                  ).toISOString()
+                : null;
+
+            const subscriptionStatus =
+              stripeSubscription.status === "active"
+                ? "Active"
+                : stripeSubscription.status === "canceled"
+                ? "Cancelled"
+                : "Lapsed";
+
+            // -----------------------------------------------
+            // Save subscription
+            // -----------------------------------------------
+
+            const { data: existingSubscription, error: findError } =
+              await supabase
+                .from("subscriptions")
+                .select("id")
+                .eq(
+                  "stripe_subscription_id",
+                  stripeSubscriptionId
+                )
+                .maybeSingle();
+
+            if (findError) {
+              console.error(
+                "Find subscription error:",
+                findError
+              );
+              break;
             }
 
-            await donation.save();
+            let subscriptionError;
 
-            console.log(
-              "Donation Paid:",
-              donation._id
-            );
+            if (existingSubscription) {
+              const result = await supabase
+                .from("subscriptions")
+                .update({
+                  user_id: userId,
+                  plan:
+                    plan ||
+                    (price?.id ===
+                    process.env.STRIPE_YEARLY_PRICE_ID
+                      ? "Yearly"
+                      : "Monthly"),
+                  status: subscriptionStatus,
+                  amount,
+                  currency,
+                  start_date: startDate,
+                  end_date: endDate,
+                  stripe_customer_id:
+                    stripeSubscription.customer || null,
+                  stripe_price_id:
+                    price?.id || null,
+                })
+                .eq("id", existingSubscription.id);
 
-            break;
+              subscriptionError = result.error;
+            } else {
+              const result = await supabase
+                .from("subscriptions")
+                .insert({
+                  user_id: userId,
+                  plan:
+                    plan ||
+                    (price?.id ===
+                    process.env.STRIPE_YEARLY_PRICE_ID
+                      ? "Yearly"
+                      : "Monthly"),
+                  status: subscriptionStatus,
+                  amount,
+                  currency,
+                  start_date: startDate,
+                  end_date: endDate,
+                  stripe_customer_id:
+                    stripeSubscription.customer || null,
+                  stripe_subscription_id:
+                    stripeSubscription.id,
+                  stripe_price_id:
+                    price?.id || null,
+                });
+
+              subscriptionError = result.error;
+            }
+
+            if (subscriptionError) {
+              console.error(
+                "Save subscription error:",
+                subscriptionError
+              );
+              break;
+            }
+
+            // -----------------------------------------------
+            // Update user
+            // -----------------------------------------------
+
+            const { error: userError } =
+              await supabase
+                .from("users")
+                .update({
+                  subscription_status:
+                    subscriptionStatus,
+                  subscription_plan:
+                    plan ||
+                    (price?.id ===
+                    process.env.STRIPE_YEARLY_PRICE_ID
+                      ? "Yearly"
+                      : "Monthly"),
+                  subscription_start_date:
+                    startDate,
+                  subscription_end_date:
+                    endDate,
+                  stripe_customer_id:
+                    stripeSubscription.customer || null,
+                  stripe_subscription_id:
+                    stripeSubscription.id,
+                  stripe_price_id:
+                    price?.id || null,
+                })
+                .eq("id", userId);
+
+            if (userError) {
+              console.error(
+                "Update user subscription error:",
+                userError
+              );
+            } else {
+              console.log(
+                `User ${userId} subscription activated`
+              );
+            }
           }
 
-          // ==================================================
-          // SUBSCRIPTION CHECKOUT
-          // ==================================================
+          break;
+        }
 
-          if (
-            session.mode !==
-            "subscription"
-          ) {
-            break;
-          }
+        // =====================================================
+        // SUBSCRIPTION UPDATED
+        // =====================================================
 
-          // ----------------------------------------------
-          // Get metadata
-          // ----------------------------------------------
+        case "customer.subscription.updated": {
+          const subscription = event.data.object;
 
-          const userId =
-            session.metadata?.userId;
+          const stripeSubscriptionId =
+            subscription.id;
 
-          const plan =
-            session.metadata?.plan;
-
-          if (
-            !userId ||
-            !session.subscription
-          ) {
-            console.log(
-              "Webhook: Missing userId or subscription ID"
-            );
-
-            break;
-          }
-
-          // ----------------------------------------------
-          // Retrieve Stripe Subscription
-          // ----------------------------------------------
-
-          const stripeSubscription =
-            await stripe.subscriptions.retrieve(
-              session.subscription
-            );
-
-          // ----------------------------------------------
-          // Stripe Price
-          // ----------------------------------------------
+          const subscriptionItem =
+            subscription.items?.data?.[0];
 
           const price =
-            stripeSubscription
-              .items
-              .data[0]
-              ?.price;
-
-          const priceId =
-            price?.id || null;
-
-          // ----------------------------------------------
-          // Amount
-          // ----------------------------------------------
+            subscriptionItem?.price;
 
           const amount =
             price?.unit_amount
               ? price.unit_amount / 100
               : 0;
 
-          // ----------------------------------------------
-          // Currency
-          // ----------------------------------------------
-
           const currency =
             price?.currency
-              ?.toUpperCase() || "INR";
+              ? price.currency.toUpperCase()
+              : "INR";
 
-          // ----------------------------------------------
-          // Subscription Status
-          // ----------------------------------------------
+          const plan =
+            price?.id ===
+            process.env.STRIPE_YEARLY_PRICE_ID
+              ? "Yearly"
+              : "Monthly";
 
-          let subscriptionStatus =
-            "Lapsed";
-
-          if (
-            stripeSubscription.status ===
-              "active" ||
-            stripeSubscription.status ===
-              "trialing"
-          ) {
-            subscriptionStatus =
-              "Active";
-          } else if (
-            stripeSubscription.status ===
-            "canceled"
-          ) {
-            subscriptionStatus =
-              "Cancelled";
-          }
-
-          // ----------------------------------------------
-          // Start Date
-          // ----------------------------------------------
+          const status =
+            subscription.status === "active"
+              ? "Active"
+              : subscription.status === "canceled"
+              ? "Cancelled"
+              : "Lapsed";
 
           const startDate =
-            stripeSubscription
-              .current_period_start
+            subscription.start_date
               ? new Date(
-                  stripeSubscription
-                    .current_period_start * 1000
-                )
-              : new Date();
-
-          // ----------------------------------------------
-          // End Date
-          // ----------------------------------------------
-
-          const endDate =
-            stripeSubscription
-              .current_period_end
-              ? new Date(
-                  stripeSubscription
-                    .current_period_end * 1000
-                )
+                  subscription.start_date * 1000
+                ).toISOString()
               : null;
 
-          // ----------------------------------------------
-          // Save Subscription
-          // ----------------------------------------------
+          const endDate =
+            subscription.cancel_at
+              ? new Date(
+                  subscription.cancel_at * 1000
+                ).toISOString()
+              : subscription.current_period_end
+              ? new Date(
+                  subscription.current_period_end * 1000
+                ).toISOString()
+              : null;
 
-          const subscription =
-            await Subscription.findOneAndUpdate(
-              {
-                stripeSubscriptionId:
-                  stripeSubscription.id,
-              },
-              {
-                user: userId,
+          // Find local subscription
+          const { data: localSubscription, error: findError } =
+            await supabase
+              .from("subscriptions")
+              .select("id, user_id")
+              .eq(
+                "stripe_subscription_id",
+                stripeSubscriptionId
+              )
+              .maybeSingle();
 
-                plan:
-                  plan || "Monthly",
-
-                status:
-                  subscriptionStatus,
-
-                amount,
-
-                currency,
-
-                startDate,
-
-                endDate,
-
-                stripeCustomerId:
-                  stripeSubscription.customer,
-
-                stripeSubscriptionId:
-                  stripeSubscription.id,
-
-                stripePriceId:
-                  priceId,
-
-                stripeCheckoutSessionId:
-                  session.id,
-              },
-              {
-                new: true,
-                upsert: true,
-              }
+          if (findError) {
+            console.error(
+              "Find updated subscription error:",
+              findError
             );
-
-          // ----------------------------------------------
-          // Update User
-          // ----------------------------------------------
-
-          await User.findByIdAndUpdate(
-            userId,
-            {
-              subscriptionStatus:
-                subscriptionStatus,
-
-              subscriptionPlan:
-                plan || "Monthly",
-
-              subscriptionStartDate:
-                startDate,
-
-              subscriptionEndDate:
-                endDate,
-
-              stripeCustomerId:
-                stripeSubscription.customer,
-
-              stripeSubscriptionId:
-                stripeSubscription.id,
-
-              stripePriceId:
-                priceId,
-            }
-          );
-
-          console.log(
-            "Subscription Activated:",
-            subscription._id
-          );
-
-          break;
-        }
-
-        // ==================================================
-        // CUSTOMER SUBSCRIPTION UPDATED
-        // ==================================================
-
-        case "customer.subscription.updated": {
-          const stripeSubscription =
-            event.data.object;
-
-          const subscription =
-            await Subscription.findOne({
-              stripeSubscriptionId:
-                stripeSubscription.id,
-            });
-
-          if (!subscription) {
-            console.log(
-              "Subscription not found:",
-              stripeSubscription.id
-            );
-
             break;
           }
 
-          // ----------------------------------------------
-          // Determine status
-          // ----------------------------------------------
-
-          let status =
-            "Lapsed";
-
-          if (
-            stripeSubscription.status ===
-              "active" ||
-            stripeSubscription.status ===
-              "trialing"
-          ) {
-            status =
-              "Active";
-          } else if (
-            stripeSubscription.status ===
-            "canceled"
-          ) {
-            status =
-              "Cancelled";
+          if (!localSubscription) {
+            console.log(
+              "Local subscription not found:",
+              stripeSubscriptionId
+            );
+            break;
           }
 
-          // ----------------------------------------------
-          // Stripe Price
-          // ----------------------------------------------
-
-          const price =
-            stripeSubscription
-              .items
-              .data[0]
-              ?.price;
-
-          const priceId =
-            price?.id || null;
-
-          // ----------------------------------------------
-          // Dates
-          // ----------------------------------------------
-
-          const startDate =
-            stripeSubscription
-              .current_period_start
-              ? new Date(
-                  stripeSubscription
-                    .current_period_start * 1000
-                )
-              : null;
-
-          const endDate =
-            stripeSubscription
-              .current_period_end
-              ? new Date(
-                  stripeSubscription
-                    .current_period_end * 1000
-                )
-              : null;
-
-          // ----------------------------------------------
-          // Update local subscription
-          // ----------------------------------------------
-
-          subscription.status =
-            status;
-
-          subscription.stripePriceId =
-            priceId;
-
-          subscription.startDate =
-            startDate;
-
-          subscription.endDate =
-            endDate;
-
-          await subscription.save();
-
-          // ----------------------------------------------
-          // Update User
-          // ----------------------------------------------
-
-          await User.findByIdAndUpdate(
-            subscription.user,
-            {
-              subscriptionStatus:
+          // Update subscription
+          const { error: subscriptionError } =
+            await supabase
+              .from("subscriptions")
+              .update({
+                plan,
                 status,
+                amount,
+                currency,
+                start_date: startDate,
+                end_date: endDate,
+                stripe_customer_id:
+                  subscription.customer || null,
+                stripe_price_id:
+                  price?.id || null,
+              })
+              .eq("id", localSubscription.id);
 
-              subscriptionStartDate:
-                startDate,
+          if (subscriptionError) {
+            console.error(
+              "Update subscription error:",
+              subscriptionError
+            );
+            break;
+          }
 
-              subscriptionEndDate:
-                endDate,
+          // Update user
+          const { error: userError } =
+            await supabase
+              .from("users")
+              .update({
+                subscription_status: status,
+                subscription_plan: plan,
+                subscription_start_date:
+                  startDate,
+                subscription_end_date:
+                  endDate,
+                stripe_customer_id:
+                  subscription.customer || null,
+                stripe_subscription_id:
+                  subscription.id,
+                stripe_price_id:
+                  price?.id || null,
+              })
+              .eq(
+                "id",
+                localSubscription.user_id
+              );
 
-              stripePriceId:
-                priceId,
-            }
-          );
-
-          console.log(
-            "Subscription Updated:",
-            stripeSubscription.id
-          );
+          if (userError) {
+            console.error(
+              "Update user subscription error:",
+              userError
+            );
+          }
 
           break;
         }
 
-        // ==================================================
-        // CUSTOMER SUBSCRIPTION DELETED
-        // ==================================================
+        // =====================================================
+        // SUBSCRIPTION DELETED
+        // =====================================================
 
         case "customer.subscription.deleted": {
-          const stripeSubscription =
-            event.data.object;
+          const subscription = event.data.object;
 
-          // ----------------------------------------------
-          // Update Subscription
-          // ----------------------------------------------
+          const stripeSubscriptionId =
+            subscription.id;
 
-          const subscription =
-            await Subscription.findOneAndUpdate(
-              {
-                stripeSubscriptionId:
-                  stripeSubscription.id,
-              },
-              {
-                status:
-                  "Cancelled",
+          const endDate =
+            subscription.ended_at
+              ? new Date(
+                  subscription.ended_at * 1000
+                ).toISOString()
+              : new Date().toISOString();
 
-                endDate:
-                  stripeSubscription
-                    .current_period_end
-                    ? new Date(
-                        stripeSubscription
-                          .current_period_end * 1000
-                      )
-                    : new Date(),
-              },
-              {
-                new: true,
-              }
+          // Find subscription
+          const { data: localSubscription, error: findError } =
+            await supabase
+              .from("subscriptions")
+              .select("id, user_id")
+              .eq(
+                "stripe_subscription_id",
+                stripeSubscriptionId
+              )
+              .maybeSingle();
+
+          if (findError) {
+            console.error(
+              "Find deleted subscription error:",
+              findError
             );
-
-          // ----------------------------------------------
-          // Update User
-          // ----------------------------------------------
-
-          if (subscription) {
-            await User.findByIdAndUpdate(
-              subscription.user,
-              {
-                subscriptionStatus:
-                  "Cancelled",
-
-                subscriptionEndDate:
-                  stripeSubscription
-                    .current_period_end
-                    ? new Date(
-                        stripeSubscription
-                          .current_period_end * 1000
-                      )
-                    : new Date(),
-              }
-            );
+            break;
           }
 
-          console.log(
-            "Subscription Cancelled:",
-            stripeSubscription.id
-          );
+          if (!localSubscription) {
+            console.log(
+              "Deleted subscription not found locally:",
+              stripeSubscriptionId
+            );
+            break;
+          }
+
+          // Update subscription
+          const { error: subscriptionError } =
+            await supabase
+              .from("subscriptions")
+              .update({
+                status: "Cancelled",
+                end_date: endDate,
+              })
+              .eq("id", localSubscription.id);
+
+          if (subscriptionError) {
+            console.error(
+              "Cancel local subscription error:",
+              subscriptionError
+            );
+            break;
+          }
+
+          // Update user
+          const { error: userError } =
+            await supabase
+              .from("users")
+              .update({
+                subscription_status: "Cancelled",
+                subscription_end_date:
+                  endDate,
+              })
+              .eq(
+                "id",
+                localSubscription.user_id
+              );
+
+          if (userError) {
+            console.error(
+              "Cancel user subscription error:",
+              userError
+            );
+          } else {
+            console.log(
+              `Subscription ${stripeSubscriptionId} cancelled`
+            );
+          }
 
           break;
         }
 
-        // ==================================================
-        // DEFAULT
-        // ==================================================
-
-        default: {
+        default:
           console.log(
             `Unhandled Stripe event: ${event.type}`
           );
-
-          break;
-        }
       }
 
-      // ==================================================
-      // STRIPE WEBHOOK SUCCESS
-      // ==================================================
-
-      return res
-        .status(200)
-        .json({
-          received: true,
-        });
+      return res.json({
+        received: true,
+      });
     } catch (error) {
       console.error(
-        "Webhook Processing Error:",
-        error.message
+        "Stripe webhook processing error:",
+        error
       );
 
-      return res
-        .status(500)
-        .json({
-          message:
-            "Webhook processing failed",
-        });
+      return res.status(500).json({
+        message: "Webhook processing failed",
+      });
     }
   }
 );

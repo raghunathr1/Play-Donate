@@ -1,76 +1,91 @@
-
 const express = require("express");
+const router = express.Router();
 const Stripe = require("stripe");
 
-const Donation = require("../models/Donation");
-const Charity = require("../models/Charity");
 const authMiddleware = require("../middleware/authMiddleware");
+const supabase = require("../config/supabase");
 
-const router = express.Router();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-const stripe = new Stripe(
-  process.env.STRIPE_SECRET_KEY
-);
-
-// ==================================================
-// CREATE DONATION CHECKOUT
-// ==================================================
-
+// =========================================================
+// POST - Create donation checkout
+// =========================================================
 router.post("/create-checkout", authMiddleware, async (req, res) => {
   try {
-    const {
-      charityId,
-      amount,
-    } = req.body;
+    const { amount, charityId } = req.body;
 
-    // Validate charity
+    const donationAmount = Number(amount);
+
+    // =====================================================
+    // Validate charity ID
+    // =====================================================
     if (!charityId) {
       return res.status(400).json({
-        message: "Charity is required",
+        message: "Charity ID is required",
       });
     }
 
-    // Validate amount
-    if (
-      !amount ||
-      Number(amount) <= 0
-    ) {
+    // =====================================================
+    // Validate donation amount
+    // =====================================================
+    if (!Number.isFinite(donationAmount) || donationAmount <= 0) {
       return res.status(400).json({
         message: "Donation amount must be greater than 0",
       });
     }
 
-    const donationAmount = Number(amount);
+    // =====================================================
+    // Check active charity
+    // =====================================================
+    const { data: charity, error: charityError } = await supabase
+      .from("charities")
+      .select("id, name, is_active")
+      .eq("id", charityId)
+      .eq("is_active", true)
+      .maybeSingle();
 
-    // Find active charity
-    const charity = await Charity.findOne({
-      _id: charityId,
-      isActive: true,
-    });
+    if (charityError) {
+      console.error("Charity lookup error:", charityError);
 
-    if (!charity) {
-      return res.status(404).json({
-        message: "Charity not found or inactive",
+      return res.status(500).json({
+        message: "Failed to verify charity",
       });
     }
 
-    // Create local donation record
-    const donation = await Donation.create({
-      user: req.user._id,
-      charity: charity._id,
-      amount: donationAmount,
-      currency: "INR",
-      status: "Pending",
-    });
+    if (!charity) {
+      return res.status(404).json({
+        message: "Active charity not found",
+      });
+    }
 
-    // Stripe amount is in paise
-    const amountInPaise = Math.round(
-      donationAmount * 100
-    );
+    // =====================================================
+    // Create pending donation
+    // =====================================================
+    const { data: donation, error: donationError } = await supabase
+      .from("donations")
+      .insert({
+        user_id: req.user.id,
+        charity_id: charityId,
+        amount: donationAmount,
+        currency: "INR",
+        status: "Pending",
+      })
+      .select("*")
+      .single();
 
-    // Create Stripe Checkout
-    const session =
-      await stripe.checkout.sessions.create({
+    if (donationError) {
+      console.error("Create donation error:", donationError);
+
+      return res.status(500).json({
+        message: "Failed to create donation",
+      });
+    }
+
+    try {
+      // ===================================================
+      // Create Stripe Checkout Session
+      // ===================================================
+      const session = await stripe.checkout.sessions.create({
         mode: "payment",
 
         line_items: [
@@ -82,92 +97,140 @@ router.post("/create-checkout", authMiddleware, async (req, res) => {
                 name: `Donation to ${charity.name}`,
               },
 
-              unit_amount: amountInPaise,
+              unit_amount: Math.round(donationAmount * 100),
             },
 
             quantity: 1,
           },
         ],
 
-        customer_email: req.user.email,
-
         metadata: {
-          donationId:
-            donation._id.toString(),
-
-          userId:
-            req.user._id.toString(),
-
-          charityId:
-            charity._id.toString(),
+          donationId: donation.id,
+          userId: req.user.id,
+          charityId: charityId,
         },
 
         success_url:
-          `${process.env.FRONTEND_URL}/charities?donation=success`,
+          `${process.env.FRONTEND_URL}/dashboard?donation=success`,
 
         cancel_url:
-          `${process.env.FRONTEND_URL}/charities?donation=cancelled`,
+          `${process.env.FRONTEND_URL}/dashboard?donation=cancelled`,
       });
 
-    // Save Stripe session ID
-    donation.stripeCheckoutSessionId =
-      session.id;
+      // ===================================================
+      // Save Stripe Checkout Session ID
+      // ===================================================
+      const { data: updatedDonation, error: updateError } =
+        await supabase
+          .from("donations")
+          .update({
+            stripe_checkout_session_id: session.id,
+          })
+          .eq("id", donation.id)
+          .select("*")
+          .single();
 
-    await donation.save();
+      if (updateError) {
+        console.error(
+          "Update donation Stripe session error:",
+          updateError
+        );
 
-    res.status(200).json({
-      message:
-        "Donation checkout created",
+        return res.status(500).json({
+          message:
+            "Donation created but failed to save Stripe session",
+        });
+      }
 
-      checkoutUrl:
-        session.url,
+      // ===================================================
+      // Return checkout details
+      // ===================================================
+      return res.json({
+        message: "Donation checkout created successfully",
 
-      sessionId:
-        session.id,
+        donation: updatedDonation,
 
-      donation,
-    });
+        sessionId: session.id,
+
+        checkoutUrl: session.url,
+      });
+    } catch (stripeError) {
+      console.error("Stripe checkout error:", stripeError);
+
+      // ===================================================
+      // Mark donation as failed
+      // ===================================================
+      await supabase
+        .from("donations")
+        .update({
+          status: "Failed",
+        })
+        .eq("id", donation.id);
+
+      return res.status(500).json({
+        message: "Failed to create Stripe checkout",
+      });
+    }
   } catch (error) {
     console.error(
-      "Create Donation Error:",
-      error.message
+      "Create donation checkout error:",
+      error
     );
 
-    res.status(500).json({
-      message:
-        "Unable to create donation checkout",
+    return res.status(500).json({
+      message: "Server error",
     });
   }
 });
 
-// ==================================================
-// GET MY DONATIONS
-// ==================================================
-
+// =========================================================
+// GET - Current user's donations
+// =========================================================
 router.get("/me", authMiddleware, async (req, res) => {
   try {
-    const donations =
-      await Donation.find({
-        user: req.user._id,
-      })
-        .populate(
-          "charity",
-          "name image"
+    const { data: donations, error } = await supabase
+      .from("donations")
+      .select(`
+        *,
+        charities (
+          id,
+          name,
+          image
         )
-        .sort({
-          createdAt: -1,
-        });
+      `)
+      .eq("user_id", req.user.id)
+      .order("created_at", {
+        ascending: false,
+      });
 
-    res.status(200).json({
-      donations,
-    });
-  } catch (error) {
-    console.error(
-      "Get Donations Error:",
-      error.message
+    if (error) {
+      console.error("Get donations error:", error);
+
+      return res.status(500).json({
+        message: "Failed to fetch donations",
+      });
+    }
+
+    // =====================================================
+    // Format donations
+    // =====================================================
+    const formattedDonations = (donations || []).map(
+      (donation) => ({
+        ...donation,
+
+        charity: donation.charities || null,
+
+        charities: undefined,
+      })
     );
 
-    res.status(500).json({
+    return res.json({
+      donations: formattedDonations,
+    });
+  } catch (error) {
+    console.error("Get donations error:", error);
+
+    return res.status(500).json({
       message: "Server error",
     });
   }
