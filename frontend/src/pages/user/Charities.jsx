@@ -4,7 +4,6 @@ import "./Charities.css";
 
 function Charities() {
   const [charities, setCharities] = useState([]);
-
   const [selectedCharity, setSelectedCharity] = useState("");
   const [contribution, setContribution] = useState(10);
 
@@ -31,7 +30,11 @@ function Charities() {
   // ==================================================
 
   const getCharityId = (charity) => {
-    return charity?._id || charity?.id || "";
+    return (
+      charity?._id ||
+      charity?.id ||
+      ""
+    );
   };
 
   const isCharityFeatured = (charity) => {
@@ -42,11 +45,19 @@ function Charities() {
   };
 
   const getCharityEvents = (charity) => {
-    if (Array.isArray(charity?.upcomingEvents)) {
+    if (
+      Array.isArray(
+        charity?.upcomingEvents
+      )
+    ) {
       return charity.upcomingEvents;
     }
 
-    if (Array.isArray(charity?.upcoming_events)) {
+    if (
+      Array.isArray(
+        charity?.upcoming_events
+      )
+    ) {
       return charity.upcoming_events;
     }
 
@@ -54,54 +65,57 @@ function Charities() {
   };
 
   // ==================================================
-  // LOAD CHARITIES + CURRENT USER
+  // LOAD CHARITIES
   // ==================================================
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadCharities = async () => {
       try {
-        setLoading(true);
-        setError("");
-        setMessage("");
-
-        // ----------------------------------------------
-        // LOAD CHARITY DIRECTORY
-        // ----------------------------------------------
-
-        const charityData = await apiRequest(
-          "/charities"
-        );
+        const charityData =
+          await apiRequest(
+            "/charities"
+          );
 
         setCharities(
-          charityData.charities || []
+          charityData?.charities || []
         );
+      } catch (error) {
+        console.error(
+          "Charity Directory Error:",
+          error
+        );
+
+        setError(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Unable to load charities."
+        );
+      }
+    };
+
+    loadCharities();
+  }, []);
+
+  // ==================================================
+  // LOAD USER + SUBSCRIPTION
+  // ==================================================
+
+  useEffect(() => {
+    const loadUserAccess = async () => {
+      try {
+        setLoading(true);
 
         // ----------------------------------------------
         // LOAD CURRENT USER
         // ----------------------------------------------
 
-        const userData = await apiRequest(
-          "/auth/me"
-        );
+        const userData =
+          await apiRequest(
+            "/auth/me"
+          );
 
-        const user = userData.user;
-
-        // ----------------------------------------------
-        // CHECK SUBSCRIPTION
-        // ----------------------------------------------
-
-        const subscriptionStatus = String(
-          user?.subscriptionStatus ||
-            user?.subscription_status ||
-            "Not Subscribed"
-        )
-          .trim()
-          .toLowerCase();
-
-        const isActive =
-          subscriptionStatus === "active";
-
-        setAccessDenied(!isActive);
+        const user =
+          userData?.user || null;
 
         // ----------------------------------------------
         // CURRENT CHARITY
@@ -109,8 +123,11 @@ function Charities() {
 
         if (user?.charity) {
           const charityId =
-            typeof user.charity === "object"
-              ? getCharityId(user.charity)
+            typeof user.charity ===
+            "object"
+              ? getCharityId(
+                  user.charity
+                )
               : user.charity;
 
           setSelectedCharity(
@@ -133,43 +150,123 @@ function Charities() {
           user?.charity_contribution;
 
         if (
-          userContribution !== undefined &&
-          userContribution !== null
+          userContribution !==
+            undefined &&
+          userContribution !==
+            null
         ) {
-          setContribution(
-            Number(userContribution)
+          const parsedContribution =
+            Number(
+              userContribution
+            );
+
+          if (
+            Number.isInteger(
+              parsedContribution
+            ) &&
+            parsedContribution >= 10 &&
+            parsedContribution <= 100
+          ) {
+            setContribution(
+              parsedContribution
+            );
+          }
+        }
+
+        // ----------------------------------------------
+        // REAL-TIME SUBSCRIPTION STATUS
+        // ----------------------------------------------
+        //
+        // IMPORTANT:
+        // Do NOT depend only on /auth/me
+        // for subscription access.
+        //
+        // /subscriptions/me is the current
+        // subscription source of truth.
+
+        try {
+          const subscriptionData =
+            await apiRequest(
+              "/subscriptions/me"
+            );
+
+          const subscription =
+            subscriptionData?.subscription ||
+            null;
+
+          const subscriptionStatus =
+            String(
+              subscription?.status || ""
+            )
+              .trim()
+              .toLowerCase();
+
+          const isActive =
+            subscriptionStatus ===
+            "active";
+
+          setAccessDenied(
+            !isActive
+          );
+
+          // --------------------------------------------
+          // If active -> clear any old access error
+          // --------------------------------------------
+
+          if (isActive) {
+            setError("");
+          }
+        } catch (subscriptionError) {
+          console.error(
+            "Subscription Access Check Error:",
+            subscriptionError
+          );
+
+          // --------------------------------------------
+          // DO NOT blindly lock user if subscription
+          // API itself has a server/network problem.
+          // --------------------------------------------
+
+          setAccessDenied(false);
+
+          setError(
+            subscriptionError?.response
+              ?.data?.message ||
+              subscriptionError?.message ||
+              "Unable to verify subscription status."
           );
         }
       } catch (error) {
         console.error(
-          "Load Charity Error:",
+          "Load User Access Error:",
           error
         );
 
-        // ------------------------------------------------
-        // SUBSCRIPTION DENIED
-        // ------------------------------------------------
+        // ----------------------------------------------
+        // AUTHENTICATION ERROR
+        // ----------------------------------------------
 
         if (
-          error?.response?.status === 403
+          error?.response?.status ===
+          401
         ) {
-          setAccessDenied(true);
-          setError("");
-          setMessage("");
+          setError(
+            "Your session has expired. Please log in again."
+          );
           return;
         }
 
         setError(
           error?.response?.data?.message ||
             error?.message ||
-            "Unable to load charities."
+            "Unable to load your account details."
         );
       } finally {
         setLoading(false);
       }
     };
 
-    loadData();
+    loadUserAccess();
   }, []);
 
   // ==================================================
@@ -186,7 +283,8 @@ function Charities() {
       params.get("donation");
 
     if (
-      donationStatus === "success"
+      donationStatus ===
+      "success"
     ) {
       setMessage(
         "Donation payment completed successfully. Thank you for supporting the charity!"
@@ -194,7 +292,8 @@ function Charities() {
     }
 
     if (
-      donationStatus === "cancelled"
+      donationStatus ===
+      "cancelled"
     ) {
       setMessage(
         "Donation payment was cancelled."
@@ -206,46 +305,55 @@ function Charities() {
   // FILTER CHARITIES
   // ==================================================
 
-  const filteredCharities = useMemo(() => {
-    return charities.filter(
-      (charity) => {
-        const searchText =
-          search
-            .toLowerCase()
-            .trim();
+  const filteredCharities =
+    useMemo(() => {
+      return charities.filter(
+        (charity) => {
+          const searchText =
+            search
+              .toLowerCase()
+              .trim();
 
-        const charityName =
-          charity?.name || "";
+          const charityName =
+            charity?.name || "";
 
-        const charityDescription =
-          charity?.description || "";
+          const charityDescription =
+            charity?.description ||
+            "";
 
-        const matchesSearch =
-          charityName
-            .toLowerCase()
-            .includes(searchText) ||
-          charityDescription
-            .toLowerCase()
-            .includes(searchText);
+          const matchesSearch =
+            charityName
+              .toLowerCase()
+              .includes(
+                searchText
+              ) ||
+            charityDescription
+              .toLowerCase()
+              .includes(
+                searchText
+              );
 
-        const matchesFilter =
-          filter === "All" ||
-          (
-            filter === "Featured" &&
-            isCharityFeatured(charity)
+          const matchesFilter =
+            filter === "All" ||
+            (
+              filter ===
+                "Featured" &&
+              isCharityFeatured(
+                charity
+              )
+            );
+
+          return (
+            matchesSearch &&
+            matchesFilter
           );
-
-        return (
-          matchesSearch &&
-          matchesFilter
-        );
-      }
-    );
-  }, [
-    charities,
-    search,
-    filter,
-  ]);
+        }
+      );
+    }, [
+      charities,
+      search,
+      filter,
+    ]);
 
   // ==================================================
   // SELECT CHARITY
@@ -255,6 +363,9 @@ function Charities() {
     charityId
   ) => {
     if (accessDenied) {
+      setError(
+        "An active subscription is required to select a charity."
+      );
       return;
     }
 
@@ -277,11 +388,23 @@ function Charities() {
       return;
     }
 
-    const value = Number(
-      event.target.value
+    const value =
+      Number(
+        event.target.value
+      );
+
+    if (
+      !Number.isInteger(value) ||
+      value < 10 ||
+      value > 100
+    ) {
+      return;
+    }
+
+    setContribution(
+      value
     );
 
-    setContribution(value);
     setMessage("");
     setError("");
   };
@@ -291,17 +414,20 @@ function Charities() {
   // ==================================================
 
   const handleSave = async () => {
-    // -------------------------------------------------
-    // ACCESS CHECK
-    // -------------------------------------------------
+    // ----------------------------------------------
+    // FRONTEND ACCESS CHECK
+    // ----------------------------------------------
 
     if (accessDenied) {
+      setError(
+        "An active subscription is required to select a charity."
+      );
       return;
     }
 
-    // -------------------------------------------------
-    // CHARITY VALIDATION
-    // -------------------------------------------------
+    // ----------------------------------------------
+    // CHARITY REQUIRED
+    // ----------------------------------------------
 
     if (!selectedCharity) {
       setError(
@@ -310,11 +436,14 @@ function Charities() {
       return;
     }
 
-    // -------------------------------------------------
+    // ----------------------------------------------
     // CONTRIBUTION VALIDATION
-    // -------------------------------------------------
+    // ----------------------------------------------
 
     if (
+      !Number.isInteger(
+        Number(contribution)
+      ) ||
       contribution < 10 ||
       contribution > 100
     ) {
@@ -334,11 +463,15 @@ function Charities() {
           "/charities/select",
           {
             method: "PUT",
+
             body: JSON.stringify({
               charityId:
                 selectedCharity,
+
               contribution:
-                contribution,
+                Number(
+                  contribution
+                ),
             }),
           }
         );
@@ -347,24 +480,46 @@ function Charities() {
       // UPDATE LOCAL USER ONLY AFTER SUCCESS
       // ----------------------------------------------
 
-      const oldUser =
-        JSON.parse(
-          localStorage.getItem(
-            "digitalHeroesUser"
-          )
-        ) || {};
+      const oldUserRaw =
+        localStorage.getItem(
+          "digitalHeroesUser"
+        );
+
+      let oldUser = {};
+
+      try {
+        oldUser =
+          oldUserRaw
+            ? JSON.parse(
+                oldUserRaw
+              )
+            : {};
+      } catch {
+        oldUser = {};
+      }
 
       const updatedUser = {
         ...oldUser,
 
         charity:
-          data.user?.charity ||
-          data.user?.charity_id ||
+          data?.user?.charity ||
+          data?.user?.charity_id ||
           selectedCharity,
 
         charityContribution:
-          data.user?.charityContribution ??
-          data.user?.charity_contribution ??
+          data?.user
+            ?.charityContribution ??
+          data?.user
+            ?.charity_contribution ??
+          contribution,
+
+        charity_id:
+          data?.user?.charity_id ||
+          selectedCharity,
+
+        charity_contribution:
+          data?.user
+            ?.charity_contribution ??
           contribution,
       };
 
@@ -374,10 +529,6 @@ function Charities() {
           updatedUser
         )
       );
-
-      // ----------------------------------------------
-      // SUCCESS MESSAGE
-      // ----------------------------------------------
 
       setMessage(
         "Charity selection saved successfully!"
@@ -389,14 +540,14 @@ function Charities() {
       );
 
       // ----------------------------------------------
-      // ACCESS DENIED
+      // BACKEND ACCESS CONTROL
       // ----------------------------------------------
 
       if (
-        error?.response?.status === 403
+        error?.response?.status ===
+        403
       ) {
         setAccessDenied(true);
-
         setError("");
         setMessage("");
 
@@ -425,12 +576,10 @@ function Charities() {
         donationAmount
       );
 
-    // -------------------------------------------------
-    // AMOUNT VALIDATION
-    // -------------------------------------------------
-
     if (
-      !amount ||
+      !Number.isInteger(
+        amount
+      ) ||
       amount <= 0
     ) {
       setError(
@@ -447,15 +596,12 @@ function Charities() {
       setMessage("");
       setError("");
 
-      // ----------------------------------------------
-      // CREATE DONATION CHECKOUT
-      // ----------------------------------------------
-
       const data =
         await apiRequest(
           "/donations/create-checkout",
           {
             method: "POST",
+
             body: JSON.stringify({
               charityId,
               amount,
@@ -463,22 +609,20 @@ function Charities() {
           }
         );
 
-      // ----------------------------------------------
-      // REDIRECT TO STRIPE
-      // ----------------------------------------------
-
       if (
         data?.checkoutUrl
       ) {
         window.location.href =
           data.checkoutUrl;
-      } else {
-        setError(
-          "Unable to create donation checkout."
-        );
 
-        setDonatingCharity("");
+        return;
       }
+
+      setError(
+        "Unable to create donation checkout."
+      );
+
+      setDonatingCharity("");
     } catch (error) {
       console.error(
         "Donation Error:",
@@ -486,7 +630,8 @@ function Charities() {
       );
 
       setError(
-        error?.response?.data?.message ||
+        error?.response
+          ?.data?.message ||
           error?.message ||
           "Unable to create donation checkout."
       );
@@ -537,6 +682,7 @@ function Charities() {
           </div>
 
           <div>
+
             <h1>
               Digital Heroes
             </h1>
@@ -544,6 +690,7 @@ function Charities() {
             <span>
               Play. Win. Give back.
             </span>
+
           </div>
 
         </div>
@@ -745,11 +892,14 @@ function Charities() {
                   return (
                     <article
                       className={
-                        isSelected
+                        isSelected &&
+                        !accessDenied
                           ? "charity-card selected"
                           : "charity-card"
                       }
-                      key={charityId}
+                      key={
+                        charityId
+                      }
                     >
 
                       {/* IMAGE */}
@@ -763,7 +913,8 @@ function Charities() {
                               charity.image
                             }
                             alt={
-                              charity.name
+                              charity.name ||
+                              "Charity"
                             }
                             className="charity-card-image"
                           />
@@ -828,9 +979,13 @@ function Charities() {
                                 ) => (
 
                                   <li
-                                    key={index}
+                                    key={
+                                      index
+                                    }
                                   >
-                                    {event}
+                                    {
+                                      event
+                                    }
                                   </li>
 
                                 )
@@ -919,6 +1074,7 @@ function Charities() {
                               <input
                                 type="number"
                                 min="1"
+                                step="1"
                                 value={
                                   donationAmount
                                 }
@@ -1028,10 +1184,17 @@ function Charities() {
                 href="/subscription"
                 className="save-charity-btn"
                 style={{
-                  textDecoration: "none",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  textDecoration:
+                    "none",
+
+                  display:
+                    "inline-flex",
+
+                  alignItems:
+                    "center",
+
+                  justifyContent:
+                    "center",
                 }}
               >
                 View Subscription
@@ -1078,7 +1241,9 @@ function Charities() {
                 min="10"
                 max="100"
                 step="1"
-                value={contribution}
+                value={
+                  contribution
+                }
                 onChange={
                   handleContributionChange
                 }
@@ -1119,7 +1284,8 @@ function Charities() {
                   handleSave
                 }
                 disabled={
-                  saving
+                  saving ||
+                  !selectedCharity
                 }
               >
                 {saving
