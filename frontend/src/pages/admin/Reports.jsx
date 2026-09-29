@@ -7,6 +7,10 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // =====================================================
+  // LOAD REPORTS
+  // =====================================================
+
   const loadReports = async () => {
     try {
       setLoading(true);
@@ -16,9 +20,23 @@ const Reports = () => {
         "/admin/reports"
       );
 
-      setReports(data.reports);
+      console.log(
+        "REPORTS API RESPONSE:",
+        data
+      );
+
+      // Supports both:
+      // 1. data.reports
+      // 2. direct data response
+      const reportData =
+        data?.reports || data || null;
+
+      setReports(reportData);
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Reports Load Error:",
+        error
+      );
 
       setError(
         error.message ||
@@ -29,9 +47,17 @@ const Reports = () => {
     }
   };
 
+  // =====================================================
+  // INITIAL LOAD
+  // =====================================================
+
   useEffect(() => {
     loadReports();
   }, []);
+
+  // =====================================================
+  // FORMAT AMOUNT
+  // =====================================================
 
   const formatAmount = (amount) => {
     return `₹${Number(
@@ -39,13 +65,19 @@ const Reports = () => {
     ).toLocaleString("en-IN")}`;
   };
 
+  // =====================================================
+  // LOADING
+  // =====================================================
+
   if (loading) {
     return (
       <div className="reports-admin-page">
         <div className="reports-loading">
           <div className="reports-spinner"></div>
 
-          <h1>Reports & Impact</h1>
+          <h1>
+            Reports & Impact
+          </h1>
 
           <p>
             Loading reports...
@@ -54,6 +86,10 @@ const Reports = () => {
       </div>
     );
   }
+
+  // =====================================================
+  // ERROR
+  // =====================================================
 
   if (error) {
     return (
@@ -68,7 +104,9 @@ const Reports = () => {
             Unable to Load Reports
           </h1>
 
-          <p>{error}</p>
+          <p>
+            {error}
+          </p>
 
           <button
             className="reports-primary-btn"
@@ -82,22 +120,234 @@ const Reports = () => {
     );
   }
 
+  // =====================================================
+  // EMPTY
+  // =====================================================
+
   if (!reports) {
     return (
       <div className="reports-admin-page">
         <div className="reports-empty">
-          <h1>Reports</h1>
+
+          <h1>
+            Reports
+          </h1>
 
           <p>
             No report data available.
           </p>
+
         </div>
       </div>
     );
   }
 
+  // =====================================================
+  // NORMALIZED DATA
+  // =====================================================
+
+  const users =
+    reports.users || {};
+
+  const charities =
+    reports.charities || {};
+
+  const draws =
+    reports.draws || {};
+
+  const winners =
+    reports.winners || {};
+
+  const prizes =
+    reports.prizes || {};
+
+  const donations =
+    reports.donations || {};
+
+  // -----------------------------------------------------
+  // Users
+  // -----------------------------------------------------
+
+  const totalUsers =
+    users.total ??
+    users.totalUsers ??
+    reports.totalUsers ??
+    0;
+
+  const activeSubscriptions =
+    users.activeSubscriptions ??
+    reports.activeSubscriptions ??
+    0;
+
+  const monthlyPlans =
+    users.monthlyPlans ??
+    users.monthlySubscriptions ??
+    reports.monthlyPlans ??
+    0;
+
+  const yearlyPlans =
+    users.yearlyPlans ??
+    users.yearlySubscriptions ??
+    reports.yearlyPlans ??
+    0;
+
+  // -----------------------------------------------------
+  // Charities
+  // -----------------------------------------------------
+
+  const totalCharities =
+    charities.total ??
+    charities.totalCharities ??
+    reports.totalCharities ??
+    0;
+
+  const activeCharities =
+    charities.active ??
+    charities.activeCharities ??
+    reports.activeCharities ??
+    0;
+
+  const featuredCharities =
+    charities.featured ??
+    charities.featuredCharities ??
+    reports.featuredCharities ??
+    0;
+
+  // -----------------------------------------------------
+  // Draws
+  // -----------------------------------------------------
+
+  const totalDraws =
+    draws.total ??
+    draws.totalDraws ??
+    reports.totalDraws ??
+    0;
+
+  const publishedDraws =
+    draws.published ??
+    draws.publishedDraws ??
+    reports.publishedDraws ??
+    0;
+
+  const totalPrizePool =
+    draws.totalPrizePool ??
+    reports.totalPrizePool ??
+    0;
+
+  // -----------------------------------------------------
+  // Winners
+  // -----------------------------------------------------
+
+  const totalWinners =
+    winners.total ??
+    winners.totalWinners ??
+    reports.totalWinners ??
+    0;
+
+  const pendingVerification =
+    winners.pendingVerification ??
+    reports.pendingVerification ??
+    0;
+
+  const approvedWinners =
+    winners.approved ??
+    winners.approvedWinners ??
+    reports.approvedWinners ??
+    0;
+
+  const paidWinners =
+    winners.paid ??
+    winners.paidWinners ??
+    reports.paidWinners ??
+    0;
+
+  // -----------------------------------------------------
+  // Prizes
+  // -----------------------------------------------------
+
+  const totalPrizeAmount =
+    prizes.totalPrizeAmount ??
+    reports.totalPrizeAmount ??
+    0;
+
+  // -----------------------------------------------------
+  // Donations
+  // -----------------------------------------------------
+
+  const totalDonations =
+    donations.total ??
+    donations.totalDonations ??
+    reports.totalDonations ??
+    0;
+
+  const paidDonations =
+    donations.paid ??
+    donations.paidDonations ??
+    reports.paidDonations ??
+    0;
+
+  const pendingDonations =
+    donations.pending ??
+    donations.pendingDonations ??
+    reports.pendingDonations ??
+    0;
+
+  const failedDonations =
+    donations.failed ??
+    donations.failedDonations ??
+    reports.failedDonations ??
+    0;
+
+  const totalDonors =
+    donations.totalDonors ??
+    reports.totalDonors ??
+    0;
+
+  const totalDonated =
+    donations.totalDonated ??
+    donations.totalDonationAmount ??
+    reports.totalDonated ??
+    reports.totalDonationAmount ??
+    0;
+
+  // =====================================================
+  // CHARITY-WISE DONATIONS
+  // =====================================================
+
+  const rawCharityWise =
+    donations.charityWise ??
+    reports.charityWiseDonations ??
+    reports.charityWise ??
+    [];
+
   const charityWise =
-    reports.donations?.charityWise || [];
+    rawCharityWise.map(
+      (charity) => ({
+        id:
+          charity.charityId ??
+          charity._id ??
+          charity.id,
+
+        charityName:
+          charity.charityName ??
+          charity.name ??
+          "Unknown Charity",
+
+        donationCount:
+          charity.donations ??
+          charity.donationCount ??
+          0,
+
+        totalAmount:
+          charity.amount ??
+          charity.totalAmount ??
+          0,
+      })
+    );
+
+  // =====================================================
+  // UI
+  // =====================================================
 
   return (
     <div className="reports-admin-page">
@@ -133,6 +383,7 @@ const Reports = () => {
         <section className="reports-hero">
 
           <div>
+
             <span>
               PLATFORM ANALYTICS
             </span>
@@ -146,6 +397,7 @@ const Reports = () => {
               winners, prizes and charity
               contributions.
             </p>
+
           </div>
 
           <button
@@ -162,6 +414,7 @@ const Reports = () => {
         <section className="reports-section">
 
           <div className="reports-section-heading">
+
             <span>
               MEMBERS
             </span>
@@ -169,14 +422,18 @@ const Reports = () => {
             <h2>
               Users & Subscriptions
             </h2>
+
           </div>
 
           <div className="reports-grid">
 
             <div className="reports-card">
-              <span>Total Users</span>
+              <span>
+                Total Users
+              </span>
+
               <strong>
-                {reports.users.totalUsers}
+                {totalUsers}
               </strong>
             </div>
 
@@ -184,11 +441,9 @@ const Reports = () => {
               <span>
                 Active Subscriptions
               </span>
+
               <strong>
-                {
-                  reports.users
-                    .activeSubscriptions
-                }
+                {activeSubscriptions}
               </strong>
             </div>
 
@@ -196,11 +451,9 @@ const Reports = () => {
               <span>
                 Monthly Plans
               </span>
+
               <strong>
-                {
-                  reports.users
-                    .monthlySubscriptions
-                }
+                {monthlyPlans}
               </strong>
             </div>
 
@@ -208,11 +461,9 @@ const Reports = () => {
               <span>
                 Yearly Plans
               </span>
+
               <strong>
-                {
-                  reports.users
-                    .yearlySubscriptions
-                }
+                {yearlyPlans}
               </strong>
             </div>
 
@@ -224,6 +475,7 @@ const Reports = () => {
         <section className="reports-section">
 
           <div className="reports-section-heading">
+
             <span>
               CHARITIES
             </span>
@@ -231,6 +483,7 @@ const Reports = () => {
             <h2>
               Charity Overview
             </h2>
+
           </div>
 
           <div className="reports-grid">
@@ -241,10 +494,7 @@ const Reports = () => {
               </span>
 
               <strong>
-                {
-                  reports.charities
-                    .totalCharities
-                }
+                {totalCharities}
               </strong>
             </div>
 
@@ -254,10 +504,7 @@ const Reports = () => {
               </span>
 
               <strong>
-                {
-                  reports.charities
-                    .activeCharities
-                }
+                {activeCharities}
               </strong>
             </div>
 
@@ -267,10 +514,7 @@ const Reports = () => {
               </span>
 
               <strong>
-                {
-                  reports.charities
-                    .featuredCharities
-                }
+                {featuredCharities}
               </strong>
             </div>
 
@@ -282,6 +526,7 @@ const Reports = () => {
         <section className="reports-section">
 
           <div className="reports-section-heading">
+
             <span>
               DRAWS
             </span>
@@ -289,31 +534,47 @@ const Reports = () => {
             <h2>
               Draw Overview
             </h2>
+
           </div>
 
           <div className="reports-grid">
 
             <div className="reports-card">
+
               <span>
                 Total Draws
               </span>
 
               <strong>
-                {reports.draws.totalDraws}
+                {totalDraws}
               </strong>
+
             </div>
 
             <div className="reports-card">
+
               <span>
                 Published Draws
               </span>
 
               <strong>
-                {
-                  reports.draws
-                    .publishedDraws
-                }
+                {publishedDraws}
               </strong>
+
+            </div>
+
+            <div className="reports-card">
+
+              <span>
+                Total Prize Pool
+              </span>
+
+              <strong>
+                {formatAmount(
+                  totalPrizePool
+                )}
+              </strong>
+
             </div>
 
           </div>
@@ -324,6 +585,7 @@ const Reports = () => {
         <section className="reports-section">
 
           <div className="reports-section-heading">
+
             <span>
               WINNERS
             </span>
@@ -331,60 +593,57 @@ const Reports = () => {
             <h2>
               Winner Overview
             </h2>
+
           </div>
 
           <div className="reports-grid">
 
             <div className="reports-card">
+
               <span>
                 Total Winners
               </span>
 
               <strong>
-                {
-                  reports.winners
-                    .totalWinners
-                }
+                {totalWinners}
               </strong>
+
             </div>
 
             <div className="reports-card">
+
               <span>
                 Pending Verification
               </span>
 
               <strong>
-                {
-                  reports.winners
-                    .pendingVerification
-                }
+                {pendingVerification}
               </strong>
+
             </div>
 
             <div className="reports-card">
+
               <span>
                 Approved Winners
               </span>
 
               <strong>
-                {
-                  reports.winners
-                    .approvedWinners
-                }
+                {approvedWinners}
               </strong>
+
             </div>
 
             <div className="reports-card">
+
               <span>
                 Paid Winners
               </span>
 
               <strong>
-                {
-                  reports.winners
-                    .paidWinners
-                }
+                {paidWinners}
               </strong>
+
             </div>
 
           </div>
@@ -395,6 +654,7 @@ const Reports = () => {
         <section className="reports-section">
 
           <div className="reports-section-heading">
+
             <span>
               PRIZES
             </span>
@@ -402,10 +662,13 @@ const Reports = () => {
             <h2>
               Prize Overview
             </h2>
+
           </div>
 
           <div className="reports-highlight-card">
+
             <div>
+
               <span>
                 TOTAL PRIZE AMOUNT
               </span>
@@ -414,16 +677,16 @@ const Reports = () => {
                 Recorded prize amount
                 across the platform.
               </p>
+
             </div>
 
             <strong>
               {formatAmount(
-                reports.prizes
-                  .totalPrizeAmount
+                totalPrizeAmount
               )}
             </strong>
-          </div>
 
+          </div>
         </section>
 
         {/* DONATIONS */}
@@ -451,72 +714,69 @@ const Reports = () => {
           <div className="reports-grid">
 
             <div className="reports-card">
+
               <span>
                 Total Donations
               </span>
 
               <strong>
-                {
-                  reports.donations
-                    .totalDonations
-                }
+                {totalDonations}
               </strong>
+
             </div>
 
             <div className="reports-card">
+
               <span>
                 Paid Donations
               </span>
 
               <strong>
-                {
-                  reports.donations
-                    .paidDonations
-                }
+                {paidDonations}
               </strong>
+
             </div>
 
             <div className="reports-card">
+
               <span>
                 Pending Donations
               </span>
 
               <strong>
-                {
-                  reports.donations
-                    .pendingDonations
-                }
+                {pendingDonations}
               </strong>
+
             </div>
 
             <div className="reports-card">
+
               <span>
                 Failed Donations
               </span>
 
               <strong>
-                {
-                  reports.donations
-                    .failedDonations
-                }
+                {failedDonations}
               </strong>
+
             </div>
 
             <div className="reports-card">
+
               <span>
                 Total Donors
               </span>
 
               <strong>
-                {
-                  reports.donations
-                    .totalDonors
-                }
+                {totalDonors}
               </strong>
+
             </div>
 
             <div className="reports-highlight-card">
+
               <div>
+
                 <span>
                   TOTAL DONATED
                 </span>
@@ -525,14 +785,15 @@ const Reports = () => {
                   Successful charity
                   contributions.
                 </p>
+
               </div>
 
               <strong>
                 {formatAmount(
-                  reports.donations
-                    .totalDonationAmount
+                  totalDonated
                 )}
               </strong>
+
             </div>
 
           </div>
@@ -544,6 +805,7 @@ const Reports = () => {
         <section className="reports-section">
 
           <div className="reports-section-heading">
+
             <span>
               BREAKDOWN
             </span>
@@ -551,10 +813,13 @@ const Reports = () => {
             <h2>
               Charity-wise Donation Impact
             </h2>
+
           </div>
 
           {charityWise.length === 0 ? (
+
             <div className="reports-empty-card">
+
               <div>♡</div>
 
               <h3>
@@ -566,34 +831,39 @@ const Reports = () => {
                 appear here once successful
                 donations are recorded.
               </p>
+
             </div>
+
           ) : (
+
             <div className="charity-report-list">
 
               {charityWise.map(
                 (charity) => (
+
                   <div
                     className="charity-report-card"
-                    key={charity._id}
+                    key={
+                      charity.id ||
+                      charity.charityName
+                    }
                   >
 
                     <div>
+
                       <h3>
-                        {
-                          charity.charityName
-                        }
+                        {charity.charityName}
                       </h3>
 
                       <p>
-                        {
-                          charity.donationCount
-                        }{" "}
+                        {charity.donationCount}{" "}
                         successful donation
                         {charity.donationCount !==
                         1
                           ? "s"
                           : ""}
                       </p>
+
                     </div>
 
                     <strong>
@@ -603,6 +873,7 @@ const Reports = () => {
                     </strong>
 
                   </div>
+
                 )
               )}
 
@@ -616,6 +887,7 @@ const Reports = () => {
         <section className="reports-section">
 
           <div className="reports-section-heading">
+
             <span>
               SUMMARY
             </span>
@@ -623,83 +895,85 @@ const Reports = () => {
             <h2>
               Platform Summary
             </h2>
+
           </div>
 
           <div className="reports-summary-card">
 
             <div className="summary-row">
+
               <span>
                 Registered users
               </span>
 
               <strong>
-                {reports.users.totalUsers}
+                {totalUsers}
               </strong>
+
             </div>
 
             <div className="summary-row">
+
               <span>
                 Active subscriptions
               </span>
 
               <strong>
-                {
-                  reports.users
-                    .activeSubscriptions
-                }
+                {activeSubscriptions}
               </strong>
+
             </div>
 
             <div className="summary-row">
+
               <span>
                 Published draws
               </span>
 
               <strong>
-                {
-                  reports.draws
-                    .publishedDraws
-                }
+                {publishedDraws}
               </strong>
+
             </div>
 
             <div className="summary-row">
+
               <span>
                 Winner records
               </span>
 
               <strong>
-                {
-                  reports.winners
-                    .totalWinners
-                }
+                {totalWinners}
               </strong>
+
             </div>
 
             <div className="summary-row">
+
               <span>
                 Recorded prize amount
               </span>
 
               <strong>
                 {formatAmount(
-                  reports.prizes
-                    .totalPrizeAmount
+                  totalPrizeAmount
                 )}
               </strong>
+
             </div>
 
             <div className="summary-row">
+
               <span>
                 Successful donations
               </span>
 
               <strong>
                 {formatAmount(
-                  reports.donations
-                    .totalDonationAmount
+                  totalDonated
                 )}
               </strong>
+
             </div>
 
           </div>
@@ -707,6 +981,7 @@ const Reports = () => {
         </section>
 
       </main>
+
     </div>
   );
 };

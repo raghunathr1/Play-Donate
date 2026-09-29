@@ -1,137 +1,380 @@
 const express = require("express");
+
 const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
 const supabase = require("../config/supabase");
 
+// =====================================================
+// CONFIG
+// =====================================================
+
 const DRAW_POOL_PERCENTAGE =
-  Number(process.env.DRAW_POOL_PERCENTAGE) || 100;
+  Number(
+    process.env.DRAW_POOL_PERCENTAGE
+  ) || 100;
 
-const generateRandomNumbers = () => {
-  const numbers = new Set();
+const MONTHLY_DRAW_AMOUNT = 500;
 
-  while (numbers.size < 5) {
-    numbers.add(Math.floor(Math.random() * 45) + 1);
-  }
+const YEARLY_DRAW_AMOUNT = 5500;
 
-  return Array.from(numbers).sort((a, b) => a - b);
-};
+const FIVE_MATCH_PERCENTAGE = 0.40;
 
-const generateWeightedNumbers = (scores) => {
-  const frequency = {};
+const FOUR_MATCH_PERCENTAGE = 0.35;
 
-  for (let number = 1; number <= 45; number++) {
-    frequency[number] = 1;
-  }
+const THREE_MATCH_PERCENTAGE = 0.25;
 
-  for (const score of scores || []) {
-    const number = Number(score.score);
+// =====================================================
+// HELPERS
+// =====================================================
 
-    if (number >= 1 && number <= 45) {
-      frequency[number] += 5;
+// -----------------------------------------------------
+// Generate 5 random unique numbers
+// -----------------------------------------------------
+
+const generateRandomNumbers =
+  () => {
+    const numbers =
+      new Set();
+
+    while (
+      numbers.size < 5
+    ) {
+      numbers.add(
+        Math.floor(
+          Math.random() * 45
+        ) + 1
+      );
     }
-  }
 
-  const selected = new Set();
+    return Array.from(
+      numbers
+    ).sort(
+      (a, b) => a - b
+    );
+  };
 
-  while (selected.size < 5) {
-    const weightedPool = [];
+// -----------------------------------------------------
+// Weighted random number selection
+// -----------------------------------------------------
 
-    for (let number = 1; number <= 45; number++) {
-      for (let i = 0; i < frequency[number]; i++) {
-        weightedPool.push(number);
+const generateWeightedNumbers =
+  (scores) => {
+    const frequency = {};
+
+    // -----------------------------------------------
+    // Base weight
+    // -----------------------------------------------
+
+    for (
+      let number = 1;
+      number <= 45;
+      number++
+    ) {
+      frequency[number] = 1;
+    }
+
+    // -----------------------------------------------
+    // Increase weight from scores
+    // -----------------------------------------------
+
+    for (
+      const score of
+        scores || []
+    ) {
+      const number =
+        Number(
+          score.score
+        );
+
+      if (
+        Number.isInteger(
+          number
+        ) &&
+        number >= 1 &&
+        number <= 45
+      ) {
+        frequency[number] += 5;
       }
     }
 
-    const randomIndex = Math.floor(
-      Math.random() * weightedPool.length
+    const selected =
+      new Set();
+
+    // -----------------------------------------------
+    // Select 5 numbers
+    // -----------------------------------------------
+
+    while (
+      selected.size < 5
+    ) {
+      let totalWeight = 0;
+
+      for (
+        let number = 1;
+        number <= 45;
+        number++
+      ) {
+        totalWeight +=
+          frequency[number];
+      }
+
+      let randomValue =
+        Math.random() *
+        totalWeight;
+
+      let selectedNumber =
+        null;
+
+      for (
+        let number = 1;
+        number <= 45;
+        number++
+      ) {
+        randomValue -=
+          frequency[number];
+
+        if (
+          randomValue <= 0
+        ) {
+          selectedNumber =
+            number;
+
+          break;
+        }
+      }
+
+      if (
+        selectedNumber !==
+          null
+      ) {
+        selected.add(
+          selectedNumber
+        );
+      }
+    }
+
+    return Array.from(
+      selected
+    ).sort(
+      (a, b) => a - b
     );
+  };
 
-    selected.add(weightedPool[randomIndex]);
-  }
+// =====================================================
+// VALIDATE DRAW MONTH
+// =====================================================
 
-  return Array.from(selected).sort((a, b) => a - b);
-};
-
-const validateWinningNumbers = (numbers) => {
-  if (!Array.isArray(numbers) || numbers.length !== 5) {
-    return false;
-  }
-
-  const uniqueNumbers = new Set(numbers);
-
-  if (uniqueNumbers.size !== 5) {
-    return false;
-  }
-
-  return numbers.every(
-    (number) =>
-      Number.isInteger(Number(number)) &&
-      Number(number) >= 1 &&
-      Number(number) <= 45
-  );
-};
-
-// GET - All draws
-router.get("/", async (req, res) => {
-  try {
-    const { data: draws, error } = await supabase
-      .from("draws")
-      .select("*")
-      .order("draw_month", { ascending: false });
-
-    if (error) {
-      console.error("Get draws error:", error);
-
-      return res.status(500).json({
-        message: "Failed to fetch draws",
-      });
+const validateDrawMonth =
+  (drawMonth) => {
+    if (
+      typeof drawMonth !==
+        "string" ||
+      !/^\d{4}-\d{2}$/.test(
+        drawMonth
+      )
+    ) {
+      return false;
     }
 
-    return res.json({
-      draws: draws || [],
-    });
-  } catch (error) {
-    console.error("Get draws error:", error);
+    const [
+      year,
+      month,
+    ] =
+      drawMonth
+        .split("-")
+        .map(Number);
 
-    return res.status(500).json({
-      message: "Server error",
-    });
-  }
-});
+    return (
+      year >= 2000 &&
+      year <= 9999 &&
+      month >= 1 &&
+      month <= 12
+    );
+  };
 
-// GET - Latest draw
-router.get("/latest", async (req, res) => {
-  try {
-    const { data: draw, error } = await supabase
-      .from("draws")
-      .select("*")
-      .order("draw_month", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+// =====================================================
+// VALIDATE WINNING NUMBERS
+// =====================================================
 
-    if (error) {
-      console.error("Get latest draw error:", error);
-
-      return res.status(500).json({
-        message: "Failed to fetch latest draw",
-      });
+const validateWinningNumbers =
+  (numbers) => {
+    if (
+      !Array.isArray(
+        numbers
+      ) ||
+      numbers.length !== 5
+    ) {
+      return false;
     }
 
-    return res.json({
-      draw: draw || null,
-    });
-  } catch (error) {
-    console.error("Get latest draw error:", error);
+    const convertedNumbers =
+      numbers.map(Number);
 
-    return res.status(500).json({
-      message: "Server error",
-    });
+    const uniqueNumbers =
+      new Set(
+        convertedNumbers
+      );
+
+    if (
+      uniqueNumbers.size !==
+      5
+    ) {
+      return false;
+    }
+
+    return convertedNumbers.every(
+      (number) =>
+        Number.isInteger(
+          number
+        ) &&
+        number >= 1 &&
+        number <= 45
+    );
+  };
+
+// =====================================================
+// ROUND MONEY
+// =====================================================
+
+const roundMoney =
+  (amount) => {
+    return Math.round(
+      (
+        Number(amount) +
+        Number.EPSILON
+      ) * 100
+    ) / 100;
+  };
+
+// =====================================================
+// GET - ALL DRAWS
+// GET /api/draws
+// =====================================================
+
+router.get(
+  "/",
+  async (req, res) => {
+    try {
+      const {
+        data: draws,
+        error,
+      } =
+        await supabase
+          .from("draws")
+          .select("*")
+          .order(
+            "draw_month",
+            {
+              ascending: false,
+            }
+          );
+
+      if (error) {
+        console.error(
+          "Get draws error:",
+          error
+        );
+
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to fetch draws",
+
+          error:
+            process.env.NODE_ENV ===
+            "development"
+              ? error.message
+              : undefined,
+        });
+      }
+
+      return res.json({
+        draws:
+          draws || [],
+      });
+    } catch (error) {
+      console.error(
+        "Get draws server error:",
+        error
+      );
+
+      return res.status(
+        500
+      ).json({
+        message:
+          "Server error",
+      });
+    }
   }
-});
+);
 
-// POST - Simulate draw
+// =====================================================
+// GET - LATEST DRAW
+// GET /api/draws/latest
+// =====================================================
+
+router.get(
+  "/latest",
+  async (req, res) => {
+    try {
+      const {
+        data: draw,
+        error,
+      } =
+        await supabase
+          .from("draws")
+          .select("*")
+          .order(
+            "draw_month",
+            {
+              ascending: false,
+            }
+          )
+          .limit(1)
+          .maybeSingle();
+
+      if (error) {
+        console.error(
+          "Get latest draw error:",
+          error
+        );
+
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to fetch latest draw",
+        });
+      }
+
+      return res.json({
+        draw:
+          draw || null,
+      });
+    } catch (error) {
+      console.error(
+        "Get latest draw server error:",
+        error
+      );
+
+      return res.status(
+        500
+      ).json({
+        message:
+          "Server error",
+      });
+    }
+  }
+);
+
+// =====================================================
+// POST - SIMULATE DRAW
+// POST /api/draws/simulate
+// =====================================================
+
 router.post(
   "/simulate",
   authMiddleware,
@@ -142,475 +385,1203 @@ router.post(
         drawMonth,
         drawMode = "standard",
         customNumbers,
-      } = req.body;
+        winningNumbers,
+      } = req.body || {};
 
-      if (!drawMonth || !/^\d{4}-\d{2}$/.test(drawMonth)) {
-        return res.status(400).json({
-          message: "Draw month must be in YYYY-MM format",
+      // -------------------------------------------------
+      // SUPPORT BOTH CUSTOM NUMBER FIELD NAMES
+      // -------------------------------------------------
+
+      const numbersToUse =
+        customNumbers !==
+        undefined
+          ? customNumbers
+          : winningNumbers;
+
+      // -------------------------------------------------
+      // VALIDATE MONTH
+      // -------------------------------------------------
+
+      if (
+        !validateDrawMonth(
+          drawMonth
+        )
+      ) {
+        return res.status(
+          400
+        ).json({
+          message:
+            "Draw month must be a valid YYYY-MM format",
         });
       }
 
-      if (!["standard", "weighted"].includes(drawMode)) {
-        return res.status(400).json({
-          message: "Draw mode must be standard or weighted",
+      // -------------------------------------------------
+      // VALIDATE MODE
+      // -------------------------------------------------
+
+      if (
+        ![
+          "standard",
+          "weighted",
+        ].includes(
+          drawMode
+        )
+      ) {
+        return res.status(
+          400
+        ).json({
+          message:
+            "Draw mode must be standard or weighted",
         });
       }
 
-      const { data: existingDraw, error: existingError } =
+      // -------------------------------------------------
+      // CHECK EXISTING DRAW
+      // -------------------------------------------------
+
+      const {
+        data: existingDraw,
+        error: existingError,
+      } =
         await supabase
           .from("draws")
-          .select("id")
-          .eq("draw_month", drawMonth)
+          .select(
+            "id, draw_month, status, results_calculated"
+          )
+          .eq(
+            "draw_month",
+            drawMonth
+          )
           .maybeSingle();
 
       if (existingError) {
-        console.error("Check existing draw error:", existingError);
+        console.error(
+          "Check existing draw error:",
+          existingError
+        );
 
-        return res.status(500).json({
-          message: "Failed to check existing draw",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to check existing draw",
         });
       }
+
+      // -------------------------------------------------
+      // BLOCK DUPLICATE DRAW
+      // -------------------------------------------------
 
       if (existingDraw) {
-        return res.status(400).json({
-          message: "A draw already exists for this month",
+        return res.status(
+          400
+        ).json({
+          message:
+            `A draw already exists for ${drawMonth}. Please choose another month.`,
         });
       }
 
-      let winningNumbers;
+      // -------------------------------------------------
+      // GENERATE WINNING NUMBERS
+      // -------------------------------------------------
 
-      if (customNumbers !== undefined) {
-        if (!validateWinningNumbers(customNumbers)) {
-          return res.status(400).json({
+      let winningNumbersFinal;
+
+      // -------------------------------------------------
+      // CUSTOM NUMBERS
+      // -------------------------------------------------
+
+      if (
+        numbersToUse !==
+        undefined
+      ) {
+        if (
+          !validateWinningNumbers(
+            numbersToUse
+          )
+        ) {
+          return res.status(
+            400
+          ).json({
             message:
               "Custom numbers must contain exactly 5 unique numbers between 1 and 45",
           });
         }
 
-        winningNumbers = customNumbers
-          .map(Number)
-          .sort((a, b) => a - b);
-      } else if (drawMode === "weighted") {
-        const { data: users, error: usersError } = await supabase
-          .from("users")
-          .select("id")
-          .eq("subscription_status", "Active")
-          .neq("role", "Admin");
+        winningNumbersFinal =
+          numbersToUse
+            .map(Number)
+            .sort(
+              (a, b) =>
+                a - b
+            );
+      }
+
+      // -------------------------------------------------
+      // WEIGHTED NUMBERS
+      // -------------------------------------------------
+
+      else if (
+        drawMode ===
+        "weighted"
+      ) {
+        // -----------------------------------------------
+        // ACTIVE USERS
+        // -----------------------------------------------
+
+        const {
+          data: users,
+          error: usersError,
+        } =
+          await supabase
+            .from("users")
+            .select("id")
+            .eq(
+              "subscription_status",
+              "Active"
+            )
+            .neq(
+              "role",
+              "Admin"
+            );
 
         if (usersError) {
-          console.error("Get active users error:", usersError);
+          console.error(
+            "Get active users error:",
+            usersError
+          );
 
-          return res.status(500).json({
-            message: "Failed to fetch active users",
+          return res.status(
+            500
+          ).json({
+            message:
+              "Failed to fetch active users",
           });
         }
 
-        const userIds = (users || []).map((user) => user.id);
+        const userIds =
+          (users || [])
+            .map(
+              (user) =>
+                user.id
+            );
 
-        let latestScores = [];
+        let latestScores =
+          [];
 
-        if (userIds.length > 0) {
-          const { data: scores, error: scoresError } = await supabase
-            .from("scores")
-            .select("user_id, score, score_date")
-            .in("user_id", userIds)
-            .order("score_date", { ascending: false });
+        // -----------------------------------------------
+        // SCORES
+        // -----------------------------------------------
 
-          if (scoresError) {
-            console.error("Get scores error:", scoresError);
+        if (
+          userIds.length >
+          0
+        ) {
+          const {
+            data: scores,
+            error: scoresError,
+          } =
+            await supabase
+              .from("scores")
+              .select(
+                `
+                  user_id,
+                  score,
+                  score_date
+                `
+              )
+              .in(
+                "user_id",
+                userIds
+              )
+              .order(
+                "score_date",
+                {
+                  ascending: false,
+                }
+              );
 
-            return res.status(500).json({
-              message: "Failed to fetch scores",
+          if (
+            scoresError
+          ) {
+            console.error(
+              "Get scores error:",
+              scoresError
+            );
+
+            return res.status(
+              500
+            ).json({
+              message:
+                "Failed to fetch scores",
             });
           }
 
-          const scoreMap = {};
+          // ---------------------------------------------
+          // LATEST 5 SCORES PER USER
+          // ---------------------------------------------
 
-          for (const score of scores || []) {
-            if (!scoreMap[score.user_id]) {
-              scoreMap[score.user_id] = [];
+          const scoreMap =
+            {};
+
+          for (
+            const score of
+              scores || []
+          ) {
+            if (
+              !scoreMap[
+                score.user_id
+              ]
+            ) {
+              scoreMap[
+                score.user_id
+              ] = [];
             }
 
-            if (scoreMap[score.user_id].length < 5) {
-              scoreMap[score.user_id].push(score);
+            if (
+              scoreMap[
+                score.user_id
+              ].length < 5
+            ) {
+              scoreMap[
+                score.user_id
+              ].push(
+                score
+              );
             }
           }
 
-          latestScores = Object.values(scoreMap).flat();
+          latestScores =
+            Object.values(
+              scoreMap
+            ).flat();
         }
 
-        winningNumbers = generateWeightedNumbers(latestScores);
-      } else {
-        winningNumbers = generateRandomNumbers();
+        winningNumbersFinal =
+          generateWeightedNumbers(
+            latestScores
+          );
       }
 
-      const { data: draw, error: insertError } = await supabase
-        .from("draws")
-        .insert({
-          draw_month: drawMonth,
-          draw_mode: drawMode,
-          winning_numbers: winningNumbers,
-          status: "Simulated",
-          results_calculated: false,
-          jackpot_amount: 0,
-          prize_pool: 0,
-          jackpot_rolled_over: false,
-          winners_5_match: 0,
-          winners_4_match: 0,
-          winners_3_match: 0,
-          jackpot_winner: false,
-        })
-        .select("*")
-        .single();
+      // -------------------------------------------------
+      // STANDARD RANDOM DRAW
+      // -------------------------------------------------
+
+      else {
+        winningNumbersFinal =
+          generateRandomNumbers();
+      }
+
+      // -------------------------------------------------
+      // CREATE DRAW
+      // -------------------------------------------------
+
+      const {
+        data: draw,
+        error: insertError,
+      } =
+        await supabase
+          .from("draws")
+          .insert({
+            draw_month:
+              drawMonth,
+
+            draw_mode:
+              drawMode,
+
+            winning_numbers:
+              winningNumbersFinal,
+
+            status:
+              "Simulated",
+
+            results_calculated:
+              false,
+
+            jackpot_amount:
+              0,
+
+            prize_pool:
+              0,
+
+            jackpot_rolled_over:
+              false,
+
+            winners_5_match:
+              0,
+
+            winners_4_match:
+              0,
+
+            winners_3_match:
+              0,
+
+            jackpot_winner:
+              false,
+          })
+          .select("*")
+          .single();
 
       if (insertError) {
-        console.error("Create draw error:", insertError);
+        console.error(
+          "Create draw error:",
+          insertError
+        );
 
-        return res.status(500).json({
-          message: "Failed to create draw",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to create draw",
         });
       }
 
-      return res.status(201).json({
-        message: "Draw simulated successfully",
+      return res.status(
+        201
+      ).json({
+        message:
+          "Draw simulated successfully",
+
         draw,
       });
     } catch (error) {
-      console.error("Simulate draw error:", error);
+      console.error(
+        "Simulate draw error:",
+        error
+      );
 
-      return res.status(500).json({
-        message: "Server error",
+      return res.status(
+        500
+      ).json({
+        message:
+          "Server error",
       });
     }
   }
 );
 
-// PUT - Publish draw
+// =====================================================
+// PUT - PUBLISH DRAW
+// PUT /api/draws/:id/publish
+// =====================================================
+
 router.put(
   "/:id/publish",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } =
+        req.params;
 
-      const { data: draw, error: findError } = await supabase
-        .from("draws")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      // -------------------------------------------------
+      // GET DRAW
+      // -------------------------------------------------
+
+      const {
+        data: draw,
+        error: findError,
+      } =
+        await supabase
+          .from("draws")
+          .select("*")
+          .eq(
+            "id",
+            id
+          )
+          .maybeSingle();
 
       if (findError) {
-        console.error("Find draw error:", findError);
+        console.error(
+          "Find draw error:",
+          findError
+        );
 
-        return res.status(500).json({
-          message: "Failed to find draw",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to find draw",
         });
       }
 
       if (!draw) {
-        return res.status(404).json({
-          message: "Draw not found",
+        return res.status(
+          404
+        ).json({
+          message:
+            "Draw not found",
         });
       }
 
-      if (draw.status === "Published") {
-        return res.status(400).json({
-          message: "Draw is already published",
+      // -------------------------------------------------
+      // ONLY SIMULATED DRAW
+      // -------------------------------------------------
+
+      if (
+        normalizeStatus(
+          draw.status
+        ) !==
+        "simulated"
+      ) {
+        return res.status(
+          400
+        ).json({
+          message:
+            "Only a simulated draw can be published",
         });
       }
 
-      const { data: publishedDraw, error: updateError } =
+      // -------------------------------------------------
+      // PREVENT PUBLISH AFTER CALCULATION
+      // -------------------------------------------------
+
+      if (
+        draw.results_calculated ===
+        true
+      ) {
+        return res.status(
+          400
+        ).json({
+          message:
+            "Calculated draw cannot be published again",
+        });
+      }
+
+      // -------------------------------------------------
+      // PUBLISH
+      // -------------------------------------------------
+
+      const {
+        data: publishedDraw,
+        error: updateError,
+      } =
         await supabase
           .from("draws")
           .update({
-            status: "Published",
-            published_at: new Date().toISOString(),
+            status:
+              "Published",
+
+            published_at:
+              new Date().toISOString(),
           })
-          .eq("id", id)
+          .eq(
+            "id",
+            id
+          )
           .select("*")
           .single();
 
       if (updateError) {
-        console.error("Publish draw error:", updateError);
+        console.error(
+          "Publish draw error:",
+          updateError
+        );
 
-        return res.status(500).json({
-          message: "Failed to publish draw",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to publish draw",
         });
       }
 
       return res.json({
-        message: "Draw published successfully",
-        draw: publishedDraw,
+        message:
+          "Draw published successfully",
+
+        draw:
+          publishedDraw,
       });
     } catch (error) {
-      console.error("Publish draw error:", error);
+      console.error(
+        "Publish draw server error:",
+        error
+      );
 
-      return res.status(500).json({
-        message: "Server error",
+      return res.status(
+        500
+      ).json({
+        message:
+          "Server error",
       });
     }
   }
 );
 
-// POST - Calculate draw results
+// =====================================================
+// POST - CALCULATE DRAW RESULTS
+// POST /api/draws/:id/calculate
+// =====================================================
+
 router.post(
   "/:id/calculate",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } =
+        req.params;
 
-      const { data: draw, error: drawError } = await supabase
-        .from("draws")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      // -------------------------------------------------
+      // GET DRAW
+      // -------------------------------------------------
+
+      const {
+        data: draw,
+        error: drawError,
+      } =
+        await supabase
+          .from("draws")
+          .select("*")
+          .eq(
+            "id",
+            id
+          )
+          .maybeSingle();
 
       if (drawError) {
-        console.error("Get draw error:", drawError);
+        console.error(
+          "Get draw error:",
+          drawError
+        );
 
-        return res.status(500).json({
-          message: "Failed to fetch draw",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to fetch draw",
         });
       }
 
       if (!draw) {
-        return res.status(404).json({
-          message: "Draw not found",
+        return res.status(
+          404
+        ).json({
+          message:
+            "Draw not found",
         });
       }
 
-      if (draw.status !== "Published") {
-        return res.status(400).json({
-          message: "Draw must be published before calculating results",
-        });
-      }
+      // -------------------------------------------------
+      // MUST BE PUBLISHED
+      // -------------------------------------------------
 
-      if (draw.results_calculated) {
-        return res.status(400).json({
-          message: "Draw results have already been calculated",
-        });
-      }
-
-      const { data: activeUsers, error: usersError } = await supabase
-        .from("users")
-        .select(
-          "id, subscription_plan, subscription_status"
+      if (
+        String(
+          draw.status || ""
         )
-        .eq("subscription_status", "Active")
-        .neq("role", "Admin");
+          .trim()
+          .toLowerCase() !==
+        "published"
+      ) {
+        return res.status(
+          400
+        ).json({
+          message:
+            "Draw must be published before calculating results",
+        });
+      }
+
+      // -------------------------------------------------
+      // PREVENT DUPLICATE CALCULATION
+      // -------------------------------------------------
+
+      if (
+        draw.results_calculated ===
+        true
+      ) {
+        return res.status(
+          400
+        ).json({
+          message:
+            "Draw results have already been calculated",
+        });
+      }
+
+      // -------------------------------------------------
+      // GET ACTIVE SUBSCRIBERS
+      // -------------------------------------------------
+
+      const {
+        data: activeUsers,
+        error: usersError,
+      } =
+        await supabase
+          .from("users")
+          .select(
+            `
+              id,
+              subscription_plan,
+              subscription_status
+            `
+          )
+          .eq(
+            "subscription_status",
+            "Active"
+          )
+          .neq(
+            "role",
+            "Admin"
+          );
 
       if (usersError) {
-        console.error("Get active users error:", usersError);
+        console.error(
+          "Get active users error:",
+          usersError
+        );
 
-        return res.status(500).json({
-          message: "Failed to fetch active subscribers",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to fetch active subscribers",
         });
       }
 
-      if (!activeUsers || activeUsers.length === 0) {
-        return res.status(400).json({
-          message: "No active subscribers available for draw",
+      if (
+        !activeUsers ||
+        activeUsers.length === 0
+      ) {
+        return res.status(
+          400
+        ).json({
+          message:
+            "No active subscribers available for draw",
         });
       }
 
-      let prizePool = 0;
+      // -------------------------------------------------
+      // CALCULATE PRIZE POOL
+      // -------------------------------------------------
 
-      for (const user of activeUsers) {
-        if (user.subscription_plan === "Yearly") {
-          prizePool += 5500;
+      let prizePool =
+        0;
+
+      for (
+        const user of
+          activeUsers
+      ) {
+        if (
+          String(
+            user.subscription_plan ||
+              ""
+          )
+            .trim()
+            .toLowerCase() ===
+          "yearly"
+        ) {
+          prizePool +=
+            YEARLY_DRAW_AMOUNT;
         } else {
-          prizePool += 500;
+          prizePool +=
+            MONTHLY_DRAW_AMOUNT;
         }
       }
 
       prizePool =
-        (prizePool * DRAW_POOL_PERCENTAGE) / 100;
+        (
+          prizePool *
+          DRAW_POOL_PERCENTAGE
+        ) / 100;
 
-      // Get previous published draw for jackpot rollover
-      const { data: previousDraw, error: previousDrawError } =
+      prizePool =
+        roundMoney(
+          prizePool
+        );
+
+      // -------------------------------------------------
+      // GET PREVIOUS JACKPOT
+      // -------------------------------------------------
+
+      const {
+        data: previousDraw,
+        error:
+          previousDrawError,
+      } =
         await supabase
           .from("draws")
-          .select("*")
-          .eq("status", "Published")
-          .neq("id", id)
-          .lt("draw_month", draw.draw_month)
-          .order("draw_month", { ascending: false })
+          .select(
+            `
+              id,
+              draw_month,
+              jackpot_amount
+            `
+          )
+          .eq(
+            "status",
+            "Published"
+          )
+          .neq(
+            "id",
+            id
+          )
+          .lt(
+            "draw_month",
+            draw.draw_month
+          )
+          .order(
+            "draw_month",
+            {
+              ascending:
+                false,
+            }
+          )
           .limit(1)
           .maybeSingle();
 
-      if (previousDrawError) {
+      if (
+        previousDrawError
+      ) {
         console.error(
           "Previous draw lookup error:",
           previousDrawError
         );
 
-        return res.status(500).json({
-          message: "Failed to fetch previous draw",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to fetch previous draw",
         });
       }
 
       const previousJackpot =
-        previousDraw?.jackpot_amount || 0;
+        roundMoney(
+          previousDraw?.jackpot_amount ||
+            0
+        );
 
-      const { data: scores, error: scoresError } =
+      // -------------------------------------------------
+      // GET SCORES
+      // -------------------------------------------------
+
+      const activeUserIds =
+        activeUsers.map(
+          (user) =>
+            user.id
+        );
+
+      const {
+        data: scores,
+        error: scoresError,
+      } =
         await supabase
           .from("scores")
           .select(
-            "id, user_id, score, score_date"
+            `
+              id,
+              user_id,
+              score,
+              score_date
+            `
           )
           .in(
             "user_id",
-            activeUsers.map((user) => user.id)
+            activeUserIds
           )
-          .order("score_date", { ascending: false });
+          .order(
+            "score_date",
+            {
+              ascending:
+                false,
+            }
+          );
 
       if (scoresError) {
-        console.error("Get scores error:", scoresError);
+        console.error(
+          "Get scores error:",
+          scoresError
+        );
 
-        return res.status(500).json({
-          message: "Failed to fetch subscriber scores",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Failed to fetch subscriber scores",
         });
       }
 
-      const latestScoresMap = {};
+      // -------------------------------------------------
+      // LATEST 5 UNIQUE SCORES PER USER
+      // -------------------------------------------------
 
-      for (const score of scores || []) {
-        if (!latestScoresMap[score.user_id]) {
-          latestScoresMap[score.user_id] = [];
+      const latestScoresMap =
+        {};
+
+      for (
+        const score of
+          scores || []
+      ) {
+        if (
+          !latestScoresMap[
+            score.user_id
+          ]
+        ) {
+          latestScoresMap[
+            score.user_id
+          ] = [];
         }
 
-        if (latestScoresMap[score.user_id].length < 5) {
-          latestScoresMap[score.user_id].push(score);
+        const existingNumbers =
+          latestScoresMap[
+            score.user_id
+          ].map(
+            (item) =>
+              Number(
+                item.score
+              )
+          );
+
+        const currentNumber =
+          Number(
+            score.score
+          );
+
+        if (
+          existingNumbers.includes(
+            currentNumber
+          )
+        ) {
+          continue;
+        }
+
+        if (
+          latestScoresMap[
+            score.user_id
+          ].length < 5
+        ) {
+          latestScoresMap[
+            score.user_id
+          ].push(
+            score
+          );
         }
       }
 
-      const winningNumbers = draw.winning_numbers || [];
+      // -------------------------------------------------
+      // WINNING NUMBERS
+      // -------------------------------------------------
 
-      const results = [];
+      const winningNumbers =
+        (
+          draw.winning_numbers ||
+          []
+        ).map(Number);
 
-      for (const user of activeUsers) {
+      if (
+        !validateWinningNumbers(
+          winningNumbers
+        )
+      ) {
+        return res.status(
+          500
+        ).json({
+          message:
+            "Draw contains invalid winning numbers",
+        });
+      }
+
+      const results =
+        [];
+
+      // -------------------------------------------------
+      // CHECK EVERY ACTIVE USER
+      // -------------------------------------------------
+
+      for (
+        const user of
+          activeUsers
+      ) {
         const userScores =
-          latestScoresMap[user.id] || [];
+          latestScoresMap[
+            user.id
+          ] || [];
 
-        const matchedNumbers = userScores.filter(
-          (score) =>
-            winningNumbers.includes(Number(score.score))
-        );
+        const userNumbers =
+          userScores.map(
+            (score) =>
+              Number(
+                score.score
+              )
+          );
 
-        const matchedCount = matchedNumbers.length;
+        const matchedNumbers =
+          [
+            ...new Set(
+              userNumbers.filter(
+                (number) =>
+                  winningNumbers.includes(
+                    number
+                  )
+              )
+            ),
+          ];
 
-        if (matchedCount >= 3) {
-          let prizeCategory = null;
+        const matchedCount =
+          matchedNumbers.length;
 
-          if (matchedCount >= 5) {
-            prizeCategory = "5 Match";
-          } else if (matchedCount === 4) {
-            prizeCategory = "4 Match";
-          } else if (matchedCount === 3) {
-            prizeCategory = "3 Match";
+        // -----------------------------------------------
+        // ONLY 3+ MATCH IS WINNER
+        // -----------------------------------------------
+
+        if (
+          matchedCount >= 3
+        ) {
+          let prizeCategory;
+
+          if (
+            matchedCount >= 5
+          ) {
+            prizeCategory =
+              "5 Match";
+          } else if (
+            matchedCount === 4
+          ) {
+            prizeCategory =
+              "4 Match";
+          } else {
+            prizeCategory =
+              "3 Match";
           }
 
           results.push({
-            draw_id: id,
-            user_id: user.id,
-            matched_numbers: matchedCount,
-            prize_category: prizeCategory,
-            prize_amount: 0,
-            payment_status: "Pending",
-            verification_status: "Pending",
+            draw_id:
+              id,
+
+            user_id:
+              user.id,
+
+            matched_numbers:
+              matchedCount,
+
+            prize_category:
+              prizeCategory,
+
+            prize_amount:
+              0,
+
+            payment_status:
+              "Pending",
+
+            verification_status:
+              "Pending",
           });
         }
       }
 
-      const winners5 = results.filter(
-        (result) => result.matched_numbers >= 5
-      );
+      // -------------------------------------------------
+      // WINNER GROUPS
+      // -------------------------------------------------
 
-      const winners4 = results.filter(
-        (result) => result.matched_numbers === 4
-      );
+      const winners5 =
+        results.filter(
+          (result) =>
+            result.matched_numbers >=
+            5
+        );
 
-      const winners3 = results.filter(
-        (result) => result.matched_numbers === 3
-      );
+      const winners4 =
+        results.filter(
+          (result) =>
+            result.matched_numbers ===
+            4
+        );
 
-      let jackpotAmount = 0;
-      let jackpotRolledOver = false;
-      let jackpotWinner = false;
+      const winners3 =
+        results.filter(
+          (result) =>
+            result.matched_numbers ===
+            3
+        );
 
-      const fiveMatchPool = prizePool * 0.40;
-      const fourMatchPool = prizePool * 0.35;
-      const threeMatchPool = prizePool * 0.25;
+      // -------------------------------------------------
+      // PRIZE POOLS
+      // -------------------------------------------------
 
-      if (winners5.length > 0) {
+      const fiveMatchPool =
+        roundMoney(
+          prizePool *
+            FIVE_MATCH_PERCENTAGE
+        );
+
+      const fourMatchPool =
+        roundMoney(
+          prizePool *
+            FOUR_MATCH_PERCENTAGE
+        );
+
+      const threeMatchPool =
+        roundMoney(
+          prizePool *
+            THREE_MATCH_PERCENTAGE
+        );
+
+      // -------------------------------------------------
+      // JACKPOT
+      // -------------------------------------------------
+
+      let jackpotAmount =
+        0;
+
+      let jackpotRolledOver =
+        false;
+
+      let jackpotWinner =
+        false;
+
+      if (
+        winners5.length > 0
+      ) {
         const amountPerWinner =
-          fiveMatchPool / winners5.length;
+          roundMoney(
+            fiveMatchPool /
+              winners5.length
+          );
 
-        for (const winner of winners5) {
-          winner.prize_amount = amountPerWinner;
+        for (
+          const winner of
+            winners5
+        ) {
+          winner.prize_amount =
+            amountPerWinner;
         }
 
-        jackpotWinner = true;
-        jackpotAmount = 0;
+        jackpotWinner =
+          true;
+
+        jackpotAmount =
+          0;
       } else {
         jackpotAmount =
-          previousJackpot + fiveMatchPool;
+          roundMoney(
+            previousJackpot +
+              fiveMatchPool
+          );
 
-        jackpotRolledOver = true;
+        jackpotRolledOver =
+          true;
       }
 
-      if (winners4.length > 0) {
-        const amountPerWinner =
-          fourMatchPool / winners4.length;
+      // -------------------------------------------------
+      // 4 MATCH PRIZES
+      // -------------------------------------------------
 
-        for (const winner of winners4) {
-          winner.prize_amount = amountPerWinner;
+      if (
+        winners4.length > 0
+      ) {
+        const amountPerWinner =
+          roundMoney(
+            fourMatchPool /
+              winners4.length
+          );
+
+        for (
+          const winner of
+            winners4
+        ) {
+          winner.prize_amount =
+            amountPerWinner;
         }
       }
 
-      if (winners3.length > 0) {
-        const amountPerWinner =
-          threeMatchPool / winners3.length;
+      // -------------------------------------------------
+      // 3 MATCH PRIZES
+      // -------------------------------------------------
 
-        for (const winner of winners3) {
-          winner.prize_amount = amountPerWinner;
+      if (
+        winners3.length > 0
+      ) {
+        const amountPerWinner =
+          roundMoney(
+            threeMatchPool /
+              winners3.length
+          );
+
+        for (
+          const winner of
+            winners3
+        ) {
+          winner.prize_amount =
+            amountPerWinner;
         }
       }
 
-      if (results.length > 0) {
-        const { error: resultsError } = await supabase
-          .from("draw_results")
-          .insert(results);
+      // -------------------------------------------------
+      // SAVE WINNERS
+      // -------------------------------------------------
 
-        if (resultsError) {
+      if (
+        results.length > 0
+      ) {
+        const {
+          error:
+            resultsError,
+        } =
+          await supabase
+            .from(
+              "draw_results"
+            )
+            .insert(
+              results
+            );
+
+        if (
+          resultsError
+        ) {
           console.error(
             "Insert draw results error:",
             resultsError
           );
 
-          return res.status(500).json({
-            message: "Failed to save draw results",
+          return res.status(
+            500
+          ).json({
+            message:
+              "Failed to save draw results",
           });
         }
       }
 
-      const { data: calculatedDraw, error: updateError } =
+      // -------------------------------------------------
+      // UPDATE DRAW
+      // -------------------------------------------------
+
+      const {
+        data: calculatedDraw,
+        error: updateError,
+      } =
         await supabase
           .from("draws")
           .update({
-            results_calculated: true,
-            prize_pool: prizePool,
-            jackpot_amount: jackpotAmount,
-            jackpot_rolled_over: jackpotRolledOver,
-            winners_5_match: winners5.length,
-            winners_4_match: winners4.length,
-            winners_3_match: winners3.length,
-            jackpot_winner: jackpotWinner,
+            results_calculated:
+              true,
+
+            prize_pool:
+              prizePool,
+
+            jackpot_amount:
+              jackpotAmount,
+
+            jackpot_rolled_over:
+              jackpotRolledOver,
+
+            winners_5_match:
+              winners5.length,
+
+            winners_4_match:
+              winners4.length,
+
+            winners_3_match:
+              winners3.length,
+
+            jackpot_winner:
+              jackpotWinner,
           })
-          .eq("id", id)
+          .eq(
+            "id",
+            id
+          )
           .select("*")
           .single();
 
@@ -620,24 +1591,99 @@ router.post(
           updateError
         );
 
-        return res.status(500).json({
-          message: "Results calculated but draw update failed",
+        return res.status(
+          500
+        ).json({
+          message:
+            "Results calculated but draw update failed",
         });
       }
 
+      // -------------------------------------------------
+      // SUCCESS
+      // -------------------------------------------------
+
       return res.json({
-        message: "Draw results calculated successfully",
-        draw: calculatedDraw,
-        resultsCount: results.length,
+        message:
+          "Draw results calculated successfully",
+
+        draw:
+          calculatedDraw,
+
+        resultsCount:
+          results.length,
+
+        winners: {
+          fiveMatch:
+            winners5.length,
+
+          fourMatch:
+            winners4.length,
+
+          threeMatch:
+            winners3.length,
+        },
+
+        prizePool: {
+          total:
+            prizePool,
+
+          fiveMatch:
+            fiveMatchPool,
+
+          fourMatch:
+            fourMatchPool,
+
+          threeMatch:
+            threeMatchPool,
+        },
+
+        jackpot: {
+          previous:
+            previousJackpot,
+
+          current:
+            jackpotAmount,
+
+          rolledOver:
+            jackpotRolledOver,
+
+          winner:
+            jackpotWinner,
+        },
       });
     } catch (error) {
-      console.error("Calculate draw error:", error);
+      console.error(
+        "Calculate draw error:",
+        error
+      );
 
-      return res.status(500).json({
-        message: "Server error",
+      return res.status(
+        500
+      ).json({
+        message:
+          "Server error",
       });
     }
   }
 );
+
+// =====================================================
+// INTERNAL STATUS HELPER
+// =====================================================
+
+function normalizeStatus(
+  value
+) {
+  return String(
+    value || ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+// =====================================================
+// EXPORT
+// =====================================================
 
 module.exports = router;

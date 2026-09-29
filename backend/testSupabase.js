@@ -1,22 +1,28 @@
-const dotenv = require("dotenv");
-dotenv.config({ override: true });
+require("dotenv").config({ override: true });
 
 const supabase = require("./config/supabase");
 
 async function testSupabase() {
-const { data, error } = await supabase
-.from("users")
-.select("id")
-.limit(1);
+  try {
+    console.log("Testing Supabase connection...");
 
-if (error) {
-console.error("❌ Supabase Connection Failed:");
-console.error(error);
-return;
-}
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, email, role")
+      .limit(1);
 
-console.log("✅ Supabase Connected Successfully!");
-console.log("Users table accessible:", data);
+    if (error) {
+      console.error("Supabase Error:");
+      console.error(error);
+      return;
+    }
+
+    console.log("Supabase Connected Successfully!");
+    console.log("Users:", data);
+  } catch (error) {
+    console.error("Connection Error:");
+    console.error(error);
+  }
 }
 
 testSupabase();

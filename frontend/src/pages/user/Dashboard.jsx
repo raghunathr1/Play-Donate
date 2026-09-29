@@ -10,6 +10,7 @@ function Dashboard() {
   const [scores, setScores] = useState([]);
   const [winnings, setWinnings] = useState([]);
   const [donations, setDonations] = useState([]);
+  const [draws, setDraws] = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [charity, setCharity] = useState(null);
 
@@ -28,18 +29,43 @@ function Dashboard() {
 
         // =================================================
         // CURRENT USER
-        // /auth/me directly user object return karta hai
         // =================================================
 
+        const userResponse = await apiRequest("/auth/me");
+
+        // Backend kabhi direct user aur kabhi { user } return
+        // kare to dono cases handle honge.
         const currentUser =
-          await apiRequest("/auth/me");
+          userResponse?.user || userResponse || null;
 
         setUser(currentUser);
 
-        localStorage.setItem(
-          "digitalHeroesUser",
-          JSON.stringify(currentUser)
-        );
+        if (currentUser) {
+          localStorage.setItem(
+            "digitalHeroesUser",
+            JSON.stringify(currentUser)
+          );
+        }
+
+        // =================================================
+        // CHECK SUBSCRIPTION STATUS
+        // =================================================
+        //
+        // IMPORTANT:
+        // Non-subscriber ke liye /scores API call nahi karenge.
+        // Isse unnecessary 403 console error avoid hoga.
+        //
+
+        const subscriptionStatus = String(
+          currentUser?.subscriptionStatus ||
+            currentUser?.subscription_status ||
+            "Not Subscribed"
+        )
+          .trim()
+          .toLowerCase();
+
+        const isSubscriptionActive =
+          subscriptionStatus === "active";
 
         // =================================================
         // CHARITY
@@ -47,18 +73,34 @@ function Dashboard() {
 
         if (currentUser?.charityId) {
           try {
-            const charityData =
-              await apiRequest(
-                `/charities/${currentUser.charityId}`
-              );
+            const charityData = await apiRequest(
+              `/charities/${currentUser.charityId}`
+            );
 
             setCharity(
-              charityData.charity || null
+              charityData?.charity || null
             );
-          } catch (error) {
+          } catch (charityError) {
             console.error(
               "Charity Fetch Error:",
-              error.message
+              charityError.message
+            );
+
+            setCharity(null);
+          }
+        } else if (currentUser?.charity_id) {
+          try {
+            const charityData = await apiRequest(
+              `/charities/${currentUser.charity_id}`
+            );
+
+            setCharity(
+              charityData?.charity || null
+            );
+          } catch (charityError) {
+            console.error(
+              "Charity Fetch Error:",
+              charityError.message
             );
 
             setCharity(null);
@@ -70,20 +112,29 @@ function Dashboard() {
         // =================================================
         // SCORES
         // =================================================
+        //
+        // Only active subscribers can access scores.
+        // Non-subscriber => simply show 0/5 on dashboard.
+        //
 
-        try {
-          const scoreData =
-            await apiRequest("/scores");
+        if (isSubscriptionActive) {
+          try {
+            const scoreData = await apiRequest("/scores");
 
-          setScores(
-            scoreData.scores || []
-          );
-        } catch (error) {
-          console.error(
-            "Score Fetch Error:",
-            error.message
-          );
+            setScores(
+              Array.isArray(scoreData?.scores)
+                ? scoreData.scores
+                : []
+            );
+          } catch (scoreError) {
+            console.error(
+              "Score Fetch Error:",
+              scoreError.message
+            );
 
+            setScores([]);
+          }
+        } else {
           setScores([]);
         }
 
@@ -92,19 +143,17 @@ function Dashboard() {
         // =================================================
 
         try {
-          const subscriptionData =
-            await apiRequest(
-              "/subscriptions/me"
-            );
+          const subscriptionData = await apiRequest(
+            "/subscriptions/me"
+          );
 
           setSubscription(
-            subscriptionData.subscription ||
-              null
+            subscriptionData?.subscription || null
           );
-        } catch (error) {
+        } catch (subscriptionError) {
           console.error(
             "Subscription Fetch Error:",
-            error.message
+            subscriptionError.message
           );
 
           setSubscription(null);
@@ -115,21 +164,45 @@ function Dashboard() {
         // =================================================
 
         try {
-          const winningsData =
-            await apiRequest(
-              "/winners/my"
-            );
+          const winningsData = await apiRequest(
+            "/winners/my"
+          );
 
           setWinnings(
-            winningsData.winnings || []
+            Array.isArray(
+              winningsData?.winnings
+            )
+              ? winningsData.winnings
+              : []
           );
-        } catch (error) {
+        } catch (winningsError) {
           console.error(
             "Winnings Fetch Error:",
-            error.message
+            winningsError.message
           );
 
           setWinnings([]);
+        }
+
+        // =================================================
+        // DRAWS
+        // =================================================
+
+        try {
+          const drawData = await apiRequest("/draws");
+
+          setDraws(
+            Array.isArray(drawData?.draws)
+              ? drawData.draws
+              : []
+          );
+        } catch (drawError) {
+          console.error(
+            "Draw Fetch Error:",
+            drawError.message
+          );
+
+          setDraws([]);
         }
 
         // =================================================
@@ -137,48 +210,65 @@ function Dashboard() {
         // =================================================
 
         try {
-          const donationData =
-            await apiRequest(
-              "/donations/me"
-            );
+          const donationData = await apiRequest(
+            "/donations/me"
+          );
 
           setDonations(
-            donationData.donations || []
+            Array.isArray(
+              donationData?.donations
+            )
+              ? donationData.donations
+              : []
           );
-        } catch (error) {
+        } catch (donationError) {
           console.error(
             "Donation Fetch Error:",
-            error.message
+            donationError.message
           );
 
           setDonations([]);
         }
-
-      } catch (error) {
+      } catch (loadError) {
         console.error(
           "Dashboard Load Error:",
-          error.message
+          loadError.message
         );
 
+        const responseMessage =
+          loadError?.response?.data?.message ||
+          "";
+
         setError(
-          error.message ||
+          responseMessage ||
+            loadError.message ||
             "Unable to load dashboard."
         );
 
-        // =================================================
-        // INVALID TOKEN
-        // =================================================
-
         const message =
-          error.message || "";
+          responseMessage ||
+          loadError.message ||
+          "";
 
-        if (
-          message.includes("token") ||
-          message.includes("Token") ||
-          message.includes("Authentication") ||
-          message.includes("Access denied") ||
-          message.includes("Invalid or expired")
-        ) {
+        const normalizedMessage =
+          String(message).toLowerCase();
+
+        const isAuthError =
+          normalizedMessage.includes("token") ||
+          normalizedMessage.includes(
+            "authentication"
+          ) ||
+          normalizedMessage.includes(
+            "access denied"
+          ) ||
+          normalizedMessage.includes(
+            "invalid or expired"
+          ) ||
+          normalizedMessage.includes(
+            "unauthorized"
+          );
+
+        if (isAuthError) {
           localStorage.removeItem(
             "digitalHeroesToken"
           );
@@ -189,7 +279,6 @@ function Dashboard() {
 
           navigate("/login");
         }
-
       } finally {
         setLoading(false);
       }
@@ -223,9 +312,364 @@ function Dashboard() {
       return "N/A";
     }
 
-    return new Date(
-      date
-    ).toLocaleDateString();
+    const parsedDate = new Date(date);
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return "N/A";
+    }
+
+    return parsedDate.toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
+  };
+
+  // =====================================================
+  // SAFE FIELD HELPERS
+  // =====================================================
+
+  const getScoreValue = (score) =>
+    score?.score ??
+    score?.stablefordScore ??
+    score?.stableford_score ??
+    score?.value ??
+    0;
+
+  const getScoreDate = (score) =>
+    score?.date ||
+    score?.scoreDate ||
+    score?.score_date ||
+    score?.playedAt ||
+    score?.played_at ||
+    score?.createdAt ||
+    score?.created_at ||
+    null;
+
+  const getDrawDate = (draw) =>
+    draw?.drawDate ||
+    draw?.draw_date ||
+    draw?.date ||
+    draw?.scheduledDate ||
+    draw?.scheduled_date ||
+    draw?.drawMonth ||
+    draw?.draw_month ||
+    draw?.month ||
+    null;
+
+  // =====================================================
+  // DRAW START DATE
+  // =====================================================
+
+  const getDrawStartDate = (draw) => {
+    const rawValue = getDrawDate(draw);
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const value = String(rawValue).trim();
+
+    // -----------------------------------------------
+    // Handle YYYY-MM draw month
+    // -----------------------------------------------
+
+    const monthMatch =
+      value.match(/^(\d{4})-(\d{2})$/);
+
+    if (monthMatch) {
+      const year = Number(
+        monthMatch[1]
+      );
+
+      const month = Number(
+        monthMatch[2]
+      );
+
+      return new Date(
+        year,
+        month - 1,
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+    }
+
+    const parsedDate = new Date(value);
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return null;
+    }
+
+    return parsedDate;
+  };
+
+  // =====================================================
+  // DRAW END DATE
+  // =====================================================
+
+  const getDrawEndDate = (draw) => {
+    const rawValue = getDrawDate(draw);
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const value = String(rawValue).trim();
+
+    // -----------------------------------------------
+    // Handle YYYY-MM as complete calendar month
+    // -----------------------------------------------
+
+    const monthMatch =
+      value.match(/^(\d{4})-(\d{2})$/);
+
+    if (monthMatch) {
+      const year = Number(
+        monthMatch[1]
+      );
+
+      const month = Number(
+        monthMatch[2]
+      );
+
+      return new Date(
+        year,
+        month,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
+    }
+
+    const parsedDate = new Date(value);
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return null;
+    }
+
+    return parsedDate;
+  };
+
+  // =====================================================
+  // DRAW LABEL
+  // =====================================================
+
+  const getDrawLabel = (draw) => {
+    const rawValue = getDrawDate(draw);
+
+    if (!rawValue) {
+      return "Upcoming Draw";
+    }
+
+    const value = String(rawValue).trim();
+
+    // -----------------------------------------------
+    // Handle YYYY-MM directly
+    // -----------------------------------------------
+
+    const monthMatch =
+      value.match(/^(\d{4})-(\d{2})$/);
+
+    if (monthMatch) {
+      const year = Number(
+        monthMatch[1]
+      );
+
+      const month = Number(
+        monthMatch[2]
+      );
+
+      const monthDate = new Date(
+        year,
+        month - 1,
+        1
+      );
+
+      return monthDate.toLocaleDateString(
+        "en-IN",
+        {
+          month: "long",
+          year: "numeric",
+        }
+      );
+    }
+
+    const parsedDate = new Date(value);
+
+    if (
+      !Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return parsedDate.toLocaleDateString(
+        "en-IN",
+        {
+          month: "long",
+          year: "numeric",
+        }
+      );
+    }
+
+    return value;
+  };
+
+  // =====================================================
+  // DRAW PUBLISHED CHECK
+  // =====================================================
+
+  const isDrawPublished = (draw) => {
+    if (
+      typeof draw?.isPublished ===
+      "boolean"
+    ) {
+      return draw.isPublished;
+    }
+
+    if (
+      typeof draw?.is_published ===
+      "boolean"
+    ) {
+      return draw.is_published;
+    }
+
+    if (
+      typeof draw?.published ===
+      "boolean"
+    ) {
+      return draw.published;
+    }
+
+    const status = String(
+      draw?.status || ""
+    ).toLowerCase();
+
+    if (
+      status === "published" ||
+      status === "calculated" ||
+      status === "completed"
+    ) {
+      return true;
+    }
+
+    return Boolean(
+      draw?.winningNumbers ||
+        draw?.winning_numbers
+    );
+  };
+
+  // =====================================================
+  // EXPLICIT PARTICIPATION CHECK
+  // =====================================================
+
+  const getExplicitParticipation = (
+    draw
+  ) => {
+    const booleanFields = [
+      draw?.isEntered,
+      draw?.is_entered,
+      draw?.userEntered,
+      draw?.user_entered,
+      draw?.isParticipating,
+      draw?.is_participating,
+      draw?.participating,
+    ];
+
+    const explicitBoolean =
+      booleanFields.find(
+        (value) =>
+          typeof value === "boolean"
+      );
+
+    if (
+      typeof explicitBoolean ===
+      "boolean"
+    ) {
+      return explicitBoolean;
+    }
+
+    const userId =
+      user?.id ||
+      user?._id;
+
+    // -----------------------------------------------
+    // PARTICIPANTS ARRAY
+    // -----------------------------------------------
+
+    if (
+      userId &&
+      Array.isArray(
+        draw?.participants
+      )
+    ) {
+      return draw.participants.some(
+        (participant) => {
+          const participantId =
+            typeof participant ===
+            "object"
+              ? participant?.id ||
+                participant?._id ||
+                participant?.userId ||
+                participant?.user_id
+              : participant;
+
+          return (
+            String(participantId) ===
+            String(userId)
+          );
+        }
+      );
+    }
+
+    // -----------------------------------------------
+    // ENTRIES ARRAY
+    // -----------------------------------------------
+
+    if (
+      userId &&
+      Array.isArray(
+        draw?.entries
+      )
+    ) {
+      return draw.entries.some(
+        (entry) => {
+          const entryId =
+            typeof entry ===
+            "object"
+              ? entry?.userId ||
+                entry?.user_id ||
+                entry?.user?.id ||
+                entry?.user?._id
+              : entry;
+
+          return (
+            String(entryId) ===
+            String(userId)
+          );
+        }
+      );
+    }
+
+    return null;
   };
 
   // =====================================================
@@ -236,8 +680,338 @@ function Dashboard() {
     donations.reduce(
       (total, donation) =>
         total +
-        Number(donation.amount || 0),
+        Number(
+          donation?.amount || 0
+        ),
       0
+    );
+
+  // =====================================================
+  // TOTAL WINNINGS
+  // =====================================================
+
+  const totalWinnings =
+    winnings.reduce(
+      (total, winning) =>
+        total +
+        Number(
+          winning?.prizeAmount ??
+            winning?.prize_amount ??
+            0
+        ),
+      0
+    );
+
+  // =====================================================
+  // PAID WINNINGS
+  // =====================================================
+
+  const paidWinnings =
+    winnings.filter(
+      (winning) =>
+        String(
+          winning?.paymentStatus ??
+            winning?.payment_status ??
+            ""
+        ).toLowerCase() ===
+        "paid"
+    );
+
+  const paidWinningsTotal =
+    paidWinnings.reduce(
+      (total, winning) =>
+        total +
+        Number(
+          winning?.prizeAmount ??
+            winning?.prize_amount ??
+            0
+        ),
+      0
+    );
+
+  // =====================================================
+  // PENDING WINNINGS
+  // =====================================================
+
+  const pendingWinnings =
+    winnings.filter(
+      (winning) => {
+        const status =
+          String(
+            winning?.paymentStatus ??
+              winning?.payment_status ??
+              "Pending"
+          ).toLowerCase();
+
+        return status !== "paid";
+      }
+    );
+
+  // =====================================================
+  // DRAW PARTICIPATION
+  // =====================================================
+
+  const now = new Date();
+
+  // -----------------------------------------------
+  // SORT DRAWS
+  // -----------------------------------------------
+
+  const sortedDraws =
+    [...draws]
+      .filter((draw) =>
+        getDrawStartDate(draw)
+      )
+      .sort((a, b) => {
+        const aDate =
+          getDrawStartDate(
+            a
+          )?.getTime() || 0;
+
+        const bDate =
+          getDrawStartDate(
+            b
+          )?.getTime() || 0;
+
+        return (
+          bDate - aDate
+        );
+      });
+
+  // -----------------------------------------------
+  // PAST / CURRENT PUBLISHED DRAWS
+  // -----------------------------------------------
+
+  const pastDraws =
+    sortedDraws.filter(
+      (draw) => {
+        const drawStart =
+          getDrawStartDate(
+            draw
+          );
+
+        return (
+          drawStart &&
+          drawStart <= now &&
+          isDrawPublished(draw)
+        );
+      }
+    );
+
+  // -----------------------------------------------
+  // UPCOMING DRAWS
+  // -----------------------------------------------
+
+  const upcomingDraws =
+    sortedDraws.filter(
+      (draw) => {
+        const drawStart =
+          getDrawStartDate(
+            draw
+          );
+
+        return (
+          drawStart &&
+          drawStart > now
+        );
+      }
+    );
+
+  // =====================================================
+  // SUBSCRIPTION PERIOD
+  // =====================================================
+
+  const subscriptionStart =
+    subscription?.startDate ||
+    subscription?.start_date ||
+    subscription?.startedAt ||
+    subscription?.started_at ||
+    user?.subscriptionStartDate ||
+    user?.subscription_start_date ||
+    null;
+
+  const subscriptionEnd =
+    subscription?.endDate ||
+    subscription?.end_date ||
+    subscription?.expiresAt ||
+    subscription?.expires_at ||
+    subscription?.currentPeriodEnd ||
+    subscription?.current_period_end ||
+    subscription?.currentPeriodEndDate ||
+    subscription?.current_period_end_date ||
+    user?.subscriptionEndDate ||
+    user?.subscription_end_date ||
+    null;
+
+  const subscriptionStartDate =
+    subscriptionStart
+      ? new Date(
+          subscriptionStart
+        )
+      : null;
+
+  const subscriptionEndDate =
+    subscriptionEnd
+      ? new Date(
+          subscriptionEnd
+        )
+      : null;
+
+  // =====================================================
+  // SUBSCRIPTION ACTIVE CHECK
+  // =====================================================
+
+  const subscriptionIsActive =
+    String(
+      user?.subscriptionStatus ||
+        user?.subscription_status ||
+        subscription?.status ||
+        ""
+    ).toLowerCase() ===
+    "active";
+
+  // =====================================================
+  // DRAW ENTERED COUNT
+  // =====================================================
+
+  const drawsEntered =
+    pastDraws.filter(
+      (draw) => {
+        // -----------------------------------------------
+        // BACKEND EXPLICIT PARTICIPATION
+        // -----------------------------------------------
+
+        const explicit =
+          getExplicitParticipation(
+            draw
+          );
+
+        if (
+          explicit === true
+        ) {
+          return true;
+        }
+
+        if (
+          explicit === false
+        ) {
+          return false;
+        }
+
+        // -----------------------------------------------
+        // USER MUST HAVE ACTIVE SUBSCRIPTION
+        // -----------------------------------------------
+
+        if (
+          !subscriptionIsActive
+        ) {
+          return false;
+        }
+
+        // -----------------------------------------------
+        // DRAW MONTH RANGE
+        // -----------------------------------------------
+
+        const drawStart =
+          getDrawStartDate(draw);
+
+        const drawEnd =
+          getDrawEndDate(draw);
+
+        if (
+          !drawStart ||
+          !drawEnd
+        ) {
+          return false;
+        }
+
+        // -----------------------------------------------
+        // VALID SUBSCRIPTION START DATE
+        // -----------------------------------------------
+
+        const validSubscriptionStart =
+          subscriptionStartDate &&
+          !Number.isNaN(
+            subscriptionStartDate.getTime()
+          );
+
+        // -----------------------------------------------
+        // VALID SUBSCRIPTION END DATE
+        // -----------------------------------------------
+
+        const validSubscriptionEnd =
+          subscriptionEndDate &&
+          !Number.isNaN(
+            subscriptionEndDate.getTime()
+          );
+
+        // -----------------------------------------------
+        // CHECK OVERLAP BETWEEN DRAW MONTH
+        // AND SUBSCRIPTION PERIOD
+        // -----------------------------------------------
+
+        const startsBeforeDrawEnds =
+          !validSubscriptionStart ||
+          drawEnd >=
+            subscriptionStartDate;
+
+        const endsAfterDrawStarts =
+          !validSubscriptionEnd ||
+          drawStart <=
+            subscriptionEndDate;
+
+        return (
+          startsBeforeDrawEnds &&
+          endsAfterDrawStarts
+        );
+      }
+    ).length;
+
+  // =====================================================
+  // NEXT DRAW
+  // =====================================================
+
+  const nextDraw =
+    upcomingDraws.length > 0
+      ? upcomingDraws[
+          upcomingDraws.length - 1
+        ]
+      : null;
+
+  // =====================================================
+  // LATEST DRAW
+  // =====================================================
+
+  const latestDraw =
+    pastDraws.length > 0
+      ? pastDraws[0]
+      : sortedDraws[
+          sortedDraws.length - 1
+        ] || null;
+
+  // =====================================================
+  // RENEWAL DATE
+  // =====================================================
+
+  const renewalDate =
+    subscription?.renewalDate ||
+    subscription?.renewal_date ||
+    subscription?.currentPeriodEnd ||
+    subscription?.current_period_end ||
+    subscription?.currentPeriodEndDate ||
+    subscription?.current_period_end_date ||
+    subscription?.endDate ||
+    subscription?.end_date ||
+    user?.subscriptionEndDate ||
+    user?.subscription_end_date ||
+    null;
+
+  const hasRenewalDate =
+    renewalDate &&
+    !Number.isNaN(
+      new Date(
+        renewalDate
+      ).getTime()
     );
 
   // =====================================================
@@ -247,6 +1021,7 @@ function Dashboard() {
   if (loading) {
     return (
       <div className="dashboard-loading">
+
         <div className="loading-spinner"></div>
 
         <h2>
@@ -256,6 +1031,7 @@ function Dashboard() {
         <p>
           Please wait a moment.
         </p>
+
       </div>
     );
   }
@@ -315,7 +1091,9 @@ function Dashboard() {
 
           <button
             className="logout-btn"
-            onClick={handleLogout}
+            onClick={
+              handleLogout
+            }
           >
             Logout
           </button>
@@ -324,13 +1102,11 @@ function Dashboard() {
 
       </header>
 
-      {/* =================================================
-          MAIN
-      ================================================= */}
-
       <main className="dashboard-container">
 
-        {/* ERROR */}
+        {/* =================================================
+            ERROR
+        ================================================= */}
 
         {error && (
           <div className="dashboard-error">
@@ -353,16 +1129,18 @@ function Dashboard() {
             <h2>
               Welcome back
               {user?.name
-                ? `, ${user.name.split(" ")[0]}`
-                : ""}
-              !
+                ? `, ${
+                    user.name
+                      .split(" ")[0]
+                  }`
+                : ""}!
             </h2>
 
             <p>
               Track your scores,
-              subscription, winnings and
-              charity impact all in one
-              place.
+              subscription, draw participation,
+              winnings and charity impact all in
+              one place.
             </p>
 
           </div>
@@ -431,6 +1209,7 @@ function Dashboard() {
 
               <strong>
                 {user?.subscriptionStatus ||
+                  user?.subscription_status ||
                   "Not Subscribed"}
               </strong>
 
@@ -449,11 +1228,14 @@ function Dashboard() {
             <div>
 
               <span>
-                Winnings
+                Total Won
               </span>
 
               <strong>
-                {winnings.length}
+                ₹
+                {totalWinnings.toLocaleString(
+                  "en-IN"
+                )}
               </strong>
 
             </div>
@@ -476,7 +1258,9 @@ function Dashboard() {
 
               <strong>
                 ₹
-                {totalDonations.toLocaleString()}
+                {totalDonations.toLocaleString(
+                  "en-IN"
+                )}
               </strong>
 
             </div>
@@ -552,8 +1336,7 @@ function Dashboard() {
                 </span>
 
                 <strong>
-                  {user?.role ||
-                    "User"}
+                  {user?.role || "User"}
                 </strong>
 
               </div>
@@ -596,22 +1379,29 @@ function Dashboard() {
 
               <span
                 className={`status-badge ${
-                  user?.subscriptionStatus
-                    ?.toLowerCase()
+                  (
+                    user?.subscriptionStatus ||
+                    user?.subscription_status ||
+                    "Not Subscribed"
+                  )
+                    .toLowerCase()
                     .replace(
                       /\s+/g,
                       "-"
-                    ) ||
-                  "not-subscribed"
+                    )
                 }`}
               >
                 {user?.subscriptionStatus ||
+                  user?.subscription_status ||
                   "Not Subscribed"}
               </span>
 
             </div>
 
-            {user?.subscriptionPlan && (
+            {(
+              user?.subscriptionPlan ||
+              user?.subscription_plan
+            ) && (
               <div className="detail-row">
 
                 <span>
@@ -619,7 +1409,8 @@ function Dashboard() {
                 </span>
 
                 <strong>
-                  {user.subscriptionPlan}
+                  {user?.subscriptionPlan ||
+                    user?.subscription_plan}
                 </strong>
 
               </div>
@@ -636,7 +1427,12 @@ function Dashboard() {
 
                   <strong>
                     ₹
-                    {subscription.amount}
+                    {Number(
+                      subscription.amount ||
+                        0
+                    ).toLocaleString(
+                      "en-IN"
+                    )}
                   </strong>
 
                 </div>
@@ -649,7 +1445,12 @@ function Dashboard() {
 
                   <strong>
                     {formatDate(
-                      subscription.startDate
+                      subscription.startDate ||
+                        subscription.start_date ||
+                        subscription.startedAt ||
+                        subscription.started_at ||
+                        subscription.createdAt ||
+                        subscription.created_at
                     )}
                   </strong>
 
@@ -658,13 +1459,15 @@ function Dashboard() {
                 <div className="detail-row">
 
                   <span>
-                    End Date
+                    Renewal Date
                   </span>
 
                   <strong>
-                    {formatDate(
-                      subscription.endDate
-                    )}
+                    {hasRenewalDate
+                      ? formatDate(
+                          renewalDate
+                        )
+                      : "N/A"}
                   </strong>
 
                 </div>
@@ -709,9 +1512,8 @@ function Dashboard() {
 
             <p className="card-description">
 
-              Your latest{" "}
-              {scores.length}{" "}
-              Stableford score
+              Your latest {scores.length} Stableford
+              score
               {scores.length !== 1
                 ? "s"
                 : ""}.
@@ -727,7 +1529,9 @@ function Dashboard() {
                 </span>
 
                 <p>
-                  No scores added yet.
+                  {subscriptionIsActive
+                    ? "No scores added yet."
+                    : "Subscribe to access and manage your scores."}
                 </p>
 
               </div>
@@ -737,15 +1541,24 @@ function Dashboard() {
               <div className="score-list">
 
                 {scores.map(
-                  (score) => (
+                  (
+                    score,
+                    index
+                  ) => (
 
                     <div
                       className="score-item"
-                      key={score._id}
+                      key={
+                        score?._id ||
+                        score?.id ||
+                        `score-${index}`
+                      }
                     >
 
                       <div className="score-number">
-                        {score.score}
+                        {getScoreValue(
+                          score
+                        )}
                       </div>
 
                       <div>
@@ -755,8 +1568,11 @@ function Dashboard() {
                         </strong>
 
                         <span>
+                          Score Date:{" "}
                           {formatDate(
-                            score.date
+                            getScoreDate(
+                              score
+                            )
                           )}
                         </span>
 
@@ -775,7 +1591,9 @@ function Dashboard() {
               to="/scores"
               className="card-btn"
             >
-              Manage Scores
+              {subscriptionIsActive
+                ? "Manage Scores"
+                : "View Score Access"}
             </Link>
 
           </div>
@@ -812,8 +1630,13 @@ function Dashboard() {
 
                 {charity.image && (
                   <img
-                    src={charity.image}
-                    alt={charity.name}
+                    src={
+                      charity.image
+                    }
+                    alt={
+                      charity.name ||
+                      "Charity"
+                    }
                     className="charity-image"
                   />
                 )}
@@ -835,7 +1658,8 @@ function Dashboard() {
                   </span>
 
                   <strong>
-                    {user?.charityContribution ||
+                    {user?.charityContribution ??
+                      user?.charity_contribution ??
                       10}
                     %
                   </strong>
@@ -925,15 +1749,16 @@ function Dashboard() {
 
                   <strong>
                     ₹
-                    {totalDonations.toLocaleString()}
+                    {totalDonations.toLocaleString(
+                      "en-IN"
+                    )}
                   </strong>
 
                 </div>
 
                 <div className="donation-count">
 
-                  {donations.length}{" "}
-                  donation
+                  {donations.length} donation
                   {donations.length !== 1
                     ? "s"
                     : ""}{" "}
@@ -944,27 +1769,39 @@ function Dashboard() {
                 <div className="donation-list">
 
                   {donations
-                    .slice(0, 3)
+                    .slice(
+                      0,
+                      3
+                    )
                     .map(
-                      (donation) => (
+                      (
+                        donation,
+                        index
+                      ) => (
 
                         <div
                           className="donation-item"
-                          key={donation._id}
+                          key={
+                            donation?._id ||
+                            donation?.id ||
+                            `donation-${index}`
+                          }
                         >
 
                           <div>
 
                             <strong>
-                              {donation
-                                .charity
+                              {donation?.charity
                                 ?.name ||
+                                donation?.charityName ||
                                 "Unknown Charity"}
                             </strong>
 
                             <span>
                               {formatDate(
-                                donation.createdAt
+                                donation?.createdAt ||
+                                  donation?.created_at ||
+                                  donation?.date
                               )}
                             </span>
 
@@ -975,18 +1812,25 @@ function Dashboard() {
                             <strong>
                               ₹
                               {Number(
-                                donation.amount ||
+                                donation?.amount ||
                                   0
-                              ).toLocaleString()}
+                              ).toLocaleString(
+                                "en-IN"
+                              )}
                             </strong>
 
                             <span
                               className={`donation-status ${(
-                                donation.status ||
+                                donation?.status ||
                                 "Pending"
-                              ).toLowerCase()}`}
+                              )
+                                .toLowerCase()
+                                .replace(
+                                  /\s+/g,
+                                  "-"
+                                )}`}
                             >
-                              {donation.status ||
+                              {donation?.status ||
                                 "Pending"}
                             </span>
 
@@ -1013,7 +1857,7 @@ function Dashboard() {
           </div>
 
           {/* =================================================
-              MONTHLY DRAW
+              MONTHLY DRAW + PARTICIPATION
           ================================================= */}
 
           <div className="dashboard-card draw-card">
@@ -1027,7 +1871,7 @@ function Dashboard() {
                 </span>
 
                 <h3>
-                  Monthly Draw
+                  Draw & Participation
                 </h3>
 
               </div>
@@ -1051,10 +1895,69 @@ function Dashboard() {
                 </strong>
 
                 <p>
-                  Check the latest draw,
-                  winning numbers and your
-                  participation.
+                  Your draw participation and
+                  upcoming draw schedule.
                 </p>
+
+              </div>
+
+            </div>
+
+            <div className="account-details">
+
+              <div className="detail-row">
+
+                <span>
+                  Latest Draw
+                </span>
+
+                <strong>
+                  {latestDraw
+                    ? getDrawLabel(
+                        latestDraw
+                      )
+                    : "No draw available"}
+                </strong>
+
+              </div>
+
+              <div className="detail-row">
+
+                <span>
+                  Draws Entered
+                </span>
+
+                <strong>
+                  {drawsEntered}
+                </strong>
+
+              </div>
+
+              <div className="detail-row">
+
+                <span>
+                  Upcoming Draws
+                </span>
+
+                <strong>
+                  {upcomingDraws.length}
+                </strong>
+
+              </div>
+
+              <div className="detail-row">
+
+                <span>
+                  Next Draw
+                </span>
+
+                <strong>
+                  {nextDraw
+                    ? getDrawLabel(
+                        nextDraw
+                      )
+                    : "No upcoming draw"}
+                </strong>
 
               </div>
 
@@ -1116,38 +2019,105 @@ function Dashboard() {
                 <div className="winning-summary">
 
                   <span>
-                    Total Winning Records
+                    Total Won
                   </span>
 
                   <strong>
-                    {winnings.length}
+                    ₹
+                    {totalWinnings.toLocaleString(
+                      "en-IN"
+                    )}
                   </strong>
+
+                </div>
+
+                <div className="account-details">
+
+                  <div className="detail-row">
+
+                    <span>
+                      Winning Records
+                    </span>
+
+                    <strong>
+                      {winnings.length}
+                    </strong>
+
+                  </div>
+
+                  <div className="detail-row">
+
+                    <span>
+                      Paid
+                    </span>
+
+                    <strong>
+                      {paidWinnings.length}
+                      {" • "}
+                      ₹
+                      {paidWinningsTotal.toLocaleString(
+                        "en-IN"
+                      )}
+                    </strong>
+
+                  </div>
+
+                  <div className="detail-row">
+
+                    <span>
+                      Current Payment Status
+                    </span>
+
+                    <strong>
+                      {winnings.length ===
+                      0
+                        ? "No winnings"
+                        : pendingWinnings.length ===
+                          0
+                        ? "All winnings paid"
+                        : `${pendingWinnings.length} pending`}
+                    </strong>
+
+                  </div>
 
                 </div>
 
                 <div className="winning-list">
 
                   {winnings
-                    .slice(0, 3)
+                    .slice(
+                      0,
+                      3
+                    )
                     .map(
-                      (winning) => (
+                      (
+                        winning,
+                        index
+                      ) => (
 
                         <div
                           className="winning-item"
-                          key={winning._id}
+                          key={
+                            winning?._id ||
+                            winning?.id ||
+                            `winning-${index}`
+                          }
                         >
 
                           <div>
 
                             <strong>
-                              {winning
-                                .draw
+                              {winning?.draw
                                 ?.drawMonth ||
+                                winning?.drawMonth ||
+                                winning?.draw_month ||
                                 "N/A"}
                             </strong>
 
                             <span>
-                              {winning.prizeCategory}
+                              {winning?.prizeCategory ||
+                                winning?.prize_category ||
+                                "Prize"}
                             </span>
 
                           </div>
@@ -1157,18 +2127,28 @@ function Dashboard() {
                             <strong>
                               ₹
                               {Number(
-                                winning.prizeAmount ||
+                                winning?.prizeAmount ??
+                                  winning?.prize_amount ??
                                   0
-                              ).toLocaleString()}
+                              ).toLocaleString(
+                                "en-IN"
+                              )}
                             </strong>
 
                             <span
                               className={`payment-status ${(
-                                winning.paymentStatus ||
+                                winning?.paymentStatus ??
+                                winning?.payment_status ??
                                 "Pending"
-                              ).toLowerCase()}`}
+                              )
+                                .toLowerCase()
+                                .replace(
+                                  /\s+/g,
+                                  "-"
+                                )}`}
                             >
-                              {winning.paymentStatus ||
+                              {winning?.paymentStatus ??
+                                winning?.payment_status ??
                                 "Pending"}
                             </span>
 

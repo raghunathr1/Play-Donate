@@ -84,73 +84,175 @@ res.status(500).json({
 //  LOGIN
 
 router.post("/login", async (req, res) => {
-try {
-const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-if (!email || !password) {
-  return res.status(400).json({
-    message: "Email and password are required",
-  });
-}
+    console.log("========== LOGIN START ==========");
+    console.log("Email received:", email);
+    console.log("Password received:", password ? "YES" : "NO");
 
-const normalizedEmail = email.toLowerCase().trim();
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required",
+      });
+    }
 
-const user = await findUserByEmail(normalizedEmail);
+    const normalizedEmail = email.toLowerCase().trim();
 
-if (!user) {
-  return res.status(401).json({
-    message: "Invalid email or password",
-  });
-}
+    console.log(
+      "Normalized email:",
+      normalizedEmail
+    );
 
-const passwordMatch = await bcrypt.compare(
-  password,
-  user.password
-);
+    // ============================================
+    // FIND USER
+    // ============================================
 
-if (!passwordMatch) {
-  return res.status(401).json({
-    message: "Invalid email or password",
-  });
-}
+    const user = await findUserByEmail(
+      normalizedEmail
+    );
 
-const token = jwt.sign(
-  {
-    userId: user.id,
-  },
-  process.env.JWT_SECRET,
-  {
-    expiresIn: "1d",
+    console.log(
+      "User found:",
+      user
+        ? {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            hasPassword: !!user.password,
+          }
+        : null
+    );
+
+    if (!user) {
+      console.log(
+        "LOGIN FAILED: USER NOT FOUND"
+      );
+
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
+    }
+
+    // ============================================
+    // PASSWORD
+    // ============================================
+
+    console.log(
+      "Password hash exists:",
+      !!user.password
+    );
+
+    console.log(
+      "Password hash prefix:",
+      user.password
+        ? user.password.substring(0, 7)
+        : "NO HASH"
+    );
+
+    const passwordMatch =
+      await bcrypt.compare(
+        password,
+        user.password
+      );
+
+    console.log(
+      "Password match:",
+      passwordMatch
+    );
+
+    if (!passwordMatch) {
+      console.log(
+        "LOGIN FAILED: PASSWORD MISMATCH"
+      );
+
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
+    }
+
+    // ============================================
+    // JWT
+    // ============================================
+
+    console.log(
+      "JWT_SECRET exists:",
+      !!process.env.JWT_SECRET
+    );
+
+    const token = jwt.sign(
+      {
+        userId: user.id,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1d",
+      }
+    );
+
+    console.log(
+      "JWT created successfully"
+    );
+
+    // ============================================
+    // RESPONSE
+    // ============================================
+
+    console.log(
+      "LOGIN SUCCESS:",
+      user.email,
+      user.role
+    );
+
+    console.log("========== LOGIN END ==========");
+
+    return res.json({
+      message: "Login successful",
+
+      token,
+
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+
+        subscriptionStatus:
+          user.subscription_status,
+
+        subscriptionPlan:
+          user.subscription_plan,
+
+        subscriptionStartDate:
+          user.subscription_start_date,
+
+        subscriptionEndDate:
+          user.subscription_end_date,
+
+        charityId:
+          user.charity_id,
+
+        charityContribution:
+          user.charity_contribution,
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "========== LOGIN ERROR =========="
+    );
+
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Server error during login",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
+    });
   }
-);
-
-res.json({
-  message: "Login successful",
-  token,
-  user: {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    subscriptionStatus: user.subscription_status,
-    subscriptionPlan: user.subscription_plan,
-    subscriptionStartDate: user.subscription_start_date,
-    subscriptionEndDate: user.subscription_end_date,
-    charityId: user.charity_id,
-    charityContribution: user.charity_contribution,
-  },
 });
-
-} catch (error) {
-console.error("Login Error:", error);
-
-res.status(500).json({
-  message: "Server error during login",
-});
-
-}
-});
-
 
 // # GET CURRENT USER
 

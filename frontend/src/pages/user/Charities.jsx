@@ -20,7 +20,40 @@ function Charities() {
   const [error, setError] = useState("");
 
   // ==================================================
-  // LOAD CHARITIES + CURRENT USER
+  // ACCESS CONTROL
+  // ==================================================
+
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  // ==================================================
+  // HELPERS
+  // ==================================================
+
+  const getCharityId = (charity) => {
+    return charity?._id || charity?.id || "";
+  };
+
+  const isCharityFeatured = (charity) => {
+    return (
+      charity?.isFeatured === true ||
+      charity?.is_featured === true
+    );
+  };
+
+  const getCharityEvents = (charity) => {
+    if (Array.isArray(charity?.upcomingEvents)) {
+      return charity.upcomingEvents;
+    }
+
+    if (Array.isArray(charity?.upcoming_events)) {
+      return charity.upcoming_events;
+    }
+
+    return [];
+  };
+
+  // ==================================================
+  // LOAD CHARITIES + CURRENT USER + SUBSCRIPTION
   // ==================================================
 
   useEffect(() => {
@@ -30,42 +63,139 @@ function Charities() {
         setError("");
         setMessage("");
 
-        const charityData = await apiRequest("/charities");
+        // ----------------------------------------------
+        // LOAD CHARITY DIRECTORY
+        // ----------------------------------------------
 
-        const loadedCharities = charityData.charities || [];
+        const charityData = await apiRequest(
+          "/charities"
+        );
 
-        setCharities(loadedCharities);
+        setCharities(
+          charityData?.charities || []
+        );
 
-        const userData = await apiRequest("/auth/me");
-        const user = userData.user;
+        // ----------------------------------------------
+        // LOAD CURRENT USER
+        // ----------------------------------------------
 
-        if (user) {
-          // Supabase user field
-          if (user.charity_id) {
-            setSelectedCharity(user.charity_id);
-          } else if (user.charity) {
-            // Backward compatibility
-            const charityId =
-              typeof user.charity === "object"
-                ? user.charity.id || user.charity._id
-                : user.charity;
+        const userData = await apiRequest(
+          "/auth/me"
+        );
 
-            setSelectedCharity(charityId || "");
-          }
+        const user =
+          userData?.user ||
+          userData ||
+          null;
 
-          // Supabase user field
-          if (user.charity_contribution !== undefined) {
-            setContribution(Number(user.charity_contribution));
-          } else if (user.charityContribution !== undefined) {
-            // Backward compatibility
-            setContribution(Number(user.charityContribution));
-          }
+        // ----------------------------------------------
+        // LOAD CURRENT SUBSCRIPTION
+        // ----------------------------------------------
+
+        let subscription = null;
+
+        try {
+          const subscriptionData =
+            await apiRequest(
+              "/subscriptions/me"
+            );
+
+          subscription =
+            subscriptionData?.subscription ||
+            null;
+        } catch (subscriptionError) {
+          console.error(
+            "Subscription Fetch Error:",
+            subscriptionError
+          );
+        }
+
+        // ----------------------------------------------
+        // DETERMINE SUBSCRIPTION STATUS
+        // ----------------------------------------------
+        //
+        // Prefer /subscriptions/me because it is the
+        // source used by the actual subscription system.
+        //
+        // Fall back to /auth/me if subscription data
+        // could not be loaded.
+
+        const subscriptionStatus =
+          String(
+            subscription?.status ||
+              user?.subscriptionStatus ||
+              user?.subscription_status ||
+              "Not Subscribed"
+          )
+            .trim()
+            .toLowerCase();
+
+        const isActive =
+          subscriptionStatus === "active";
+
+        setAccessDenied(!isActive);
+
+        // ----------------------------------------------
+        // CURRENT CHARITY
+        // ----------------------------------------------
+
+        if (user?.charity) {
+          const charityId =
+            typeof user.charity === "object"
+              ? getCharityId(user.charity)
+              : user.charity;
+
+          setSelectedCharity(
+            charityId || ""
+          );
+        } else if (
+          user?.charity_id
+        ) {
+          setSelectedCharity(
+            user.charity_id
+          );
+        }
+
+        // ----------------------------------------------
+        // CURRENT CONTRIBUTION
+        // ----------------------------------------------
+
+        const userContribution =
+          user?.charityContribution ??
+          user?.charity_contribution;
+
+        if (
+          userContribution !==
+            undefined &&
+          userContribution !== null
+        ) {
+          setContribution(
+            Number(userContribution)
+          );
         }
       } catch (error) {
-        console.error("Load Charity Error:", error);
+        console.error(
+          "Load Charity Error:",
+          error
+        );
+
+        // ------------------------------------------------
+        // SUBSCRIPTION DENIED
+        // ------------------------------------------------
+
+        if (
+          error?.response?.status === 403
+        ) {
+          setAccessDenied(true);
+          setError("");
+          setMessage("");
+          return;
+        }
 
         setError(
-          error.message || "Unable to load charities."
+          error?.response?.data?.message ||
+            error?.message ||
+            "Unable to load charities."
         );
       } finally {
         setLoading(false);
@@ -80,34 +210,27 @@ function Charities() {
   // ==================================================
 
   useEffect(() => {
-    const params = new URLSearchParams(
-      window.location.search
-    );
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
 
-    const donationStatus = params.get("donation");
+    const donationStatus =
+      params.get("donation");
 
-    if (donationStatus === "success") {
+    if (
+      donationStatus === "success"
+    ) {
       setMessage(
         "Donation payment completed successfully. Thank you for supporting the charity!"
       );
-
-      // Remove query parameter after displaying message
-      window.history.replaceState(
-        {},
-        document.title,
-        window.location.pathname
-      );
     }
 
-    if (donationStatus === "cancelled") {
+    if (
+      donationStatus === "cancelled"
+    ) {
       setMessage(
         "Donation payment was cancelled."
-      );
-
-      window.history.replaceState(
-        {},
-        document.title,
-        window.location.pathname
       );
     }
   }, []);
@@ -117,77 +240,61 @@ function Charities() {
   // ==================================================
 
   const filteredCharities = useMemo(() => {
-    return charities.filter((charity) => {
-      const searchText = search
-        .toLowerCase()
-        .trim();
+    return charities.filter(
+      (charity) => {
+        const searchText =
+          search
+            .toLowerCase()
+            .trim();
 
-      const charityName = (
-        charity.name || ""
-      ).toLowerCase();
+        const charityName =
+          charity?.name || "";
 
-      const charityDescription = (
-        charity.description || ""
-      ).toLowerCase();
+        const charityDescription =
+          charity?.description || "";
 
-      const matchesSearch =
-        charityName.includes(searchText) ||
-        charityDescription.includes(searchText);
+        const matchesSearch =
+          charityName
+            .toLowerCase()
+            .includes(searchText) ||
+          charityDescription
+            .toLowerCase()
+            .includes(searchText);
 
-      const isFeatured =
-        charity.is_featured ??
-        charity.isFeatured ??
-        false;
+        const matchesFilter =
+          filter === "All" ||
+          (
+            filter === "Featured" &&
+            isCharityFeatured(charity)
+          );
 
-      const matchesFilter =
-        filter === "All" ||
-        (filter === "Featured" && isFeatured);
-
-      return (
-        matchesSearch &&
-        matchesFilter
-      );
-    });
-  }, [charities, search, filter]);
-
-  // ==================================================
-  // GET CHARITY ID
-  // ==================================================
-
-  const getCharityId = (charity) => {
-    return charity.id || charity._id;
-  };
-
-  // ==================================================
-  // GET CHARITY FEATURED STATUS
-  // ==================================================
-
-  const isCharityFeatured = (charity) => {
-    return (
-      charity.is_featured ??
-      charity.isFeatured ??
-      false
+        return (
+          matchesSearch &&
+          matchesFilter
+        );
+      }
     );
-  };
-
-  // ==================================================
-  // GET UPCOMING EVENTS
-  // ==================================================
-
-  const getUpcomingEvents = (charity) => {
-    return (
-      charity.upcoming_events ||
-      charity.upcomingEvents ||
-      []
-    );
-  };
+  }, [
+    charities,
+    search,
+    filter,
+  ]);
 
   // ==================================================
   // SELECT CHARITY
   // ==================================================
 
-  const handleSelectCharity = (charityId) => {
-    setSelectedCharity(charityId);
+  const handleSelectCharity = (
+    charityId
+  ) => {
+    if (accessDenied) {
+      return;
+    }
+
+    setSelectedCharity(
+      charityId
+    );
+
     setMessage("");
     setError("");
   };
@@ -196,8 +303,16 @@ function Charities() {
   // CONTRIBUTION CHANGE
   // ==================================================
 
-  const handleContributionChange = (event) => {
-    const value = Number(event.target.value);
+  const handleContributionChange = (
+    event
+  ) => {
+    if (accessDenied) {
+      return;
+    }
+
+    const value = Number(
+      event.target.value
+    );
 
     setContribution(value);
     setMessage("");
@@ -209,6 +324,10 @@ function Charities() {
   // ==================================================
 
   const handleSave = async () => {
+    if (accessDenied) {
+      return;
+    }
+
     if (!selectedCharity) {
       setError(
         "Please select a charity first."
@@ -231,19 +350,25 @@ function Charities() {
       setMessage("");
       setError("");
 
-      const data = await apiRequest(
-        "/charities/select",
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            charityId: selectedCharity,
-            contribution: contribution,
-          }),
-        }
-      );
+      const data =
+        await apiRequest(
+          "/charities/select",
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              charityId:
+                selectedCharity,
 
-      // Update localStorage for existing frontend
-      // components that may use cached user data.
+              contribution:
+                contribution,
+            }),
+          }
+        );
+
+      // ----------------------------------------------
+      // UPDATE LOCAL USER ONLY AFTER SUCCESS
+      // ----------------------------------------------
+
       const oldUser =
         JSON.parse(
           localStorage.getItem(
@@ -254,28 +379,22 @@ function Charities() {
       const updatedUser = {
         ...oldUser,
 
-        charity_id:
+        charity:
+          data.user?.charity ||
           data.user?.charity_id ||
           selectedCharity,
 
-        charity_contribution:
-          data.user?.charity_contribution ??
-          contribution,
-
-        // Backward-compatible fields
-        charity:
-          data.user?.charity ||
-          selectedCharity,
-
         charityContribution:
-          data.user?.charity_contribution ??
           data.user?.charityContribution ??
+          data.user?.charity_contribution ??
           contribution,
       };
 
       localStorage.setItem(
         "digitalHeroesUser",
-        JSON.stringify(updatedUser)
+        JSON.stringify(
+          updatedUser
+        )
       );
 
       setMessage(
@@ -287,8 +406,24 @@ function Charities() {
         error
       );
 
+      // ----------------------------------------------
+      // ACCESS DENIED
+      // ----------------------------------------------
+
+      if (
+        error?.response?.status === 403
+      ) {
+        setAccessDenied(true);
+
+        setError("");
+        setMessage("");
+
+        return;
+      }
+
       setError(
-        error.message ||
+        error?.response?.data?.message ||
+          error?.message ||
           "Unable to save charity selection."
       );
     } finally {
@@ -300,19 +435,18 @@ function Charities() {
   // DONATE TO CHARITY
   // ==================================================
 
-  const handleDonate = async (charityId) => {
-    const amount = Number(
-      donationAmount
-    );
-
-    if (!amount || amount <= 0) {
-      setError(
-        "Please enter a valid donation amount."
+  const handleDonate = async (
+    charityId
+  ) => {
+    const amount =
+      Number(
+        donationAmount
       );
-      return;
-    }
 
-    if (!Number.isFinite(amount)) {
+    if (
+      !amount ||
+      amount <= 0
+    ) {
       setError(
         "Please enter a valid donation amount."
       );
@@ -320,29 +454,37 @@ function Charities() {
     }
 
     try {
-      setDonatingCharity(charityId);
+      setDonatingCharity(
+        charityId
+      );
+
       setMessage("");
       setError("");
 
-      const data = await apiRequest(
-        "/donations/create-checkout",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            charityId,
-            amount,
-          }),
-        }
-      );
-
-      if (!data.checkoutUrl) {
-        throw new Error(
-          "Stripe checkout URL was not received."
+      const data =
+        await apiRequest(
+          "/donations/create-checkout",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              charityId,
+              amount,
+            }),
+          }
         );
-      }
 
-      window.location.href =
-        data.checkoutUrl;
+      if (
+        data?.checkoutUrl
+      ) {
+        window.location.href =
+          data.checkoutUrl;
+      } else {
+        setError(
+          "Unable to create donation checkout."
+        );
+
+        setDonatingCharity("");
+      }
     } catch (error) {
       console.error(
         "Donation Error:",
@@ -350,7 +492,8 @@ function Charities() {
       );
 
       setError(
-        error.message ||
+        error?.response?.data?.message ||
+          error?.message ||
           "Unable to create donation checkout."
       );
 
@@ -365,13 +508,17 @@ function Charities() {
   if (loading) {
     return (
       <div className="charity-loading">
+
         <div className="charity-spinner"></div>
 
-        <h2>Loading charities...</h2>
+        <h2>
+          Loading charities...
+        </h2>
 
         <p>
           Finding causes you can support.
         </p>
+
       </div>
     );
   }
@@ -396,7 +543,9 @@ function Charities() {
           </div>
 
           <div>
-            <h1>Digital Heroes</h1>
+            <h1>
+              Digital Heroes
+            </h1>
 
             <span>
               Play. Win. Give back.
@@ -460,7 +609,9 @@ function Charities() {
               placeholder="Search charities..."
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                setSearch(
+                  event.target.value
+                )
               }
             />
 
@@ -469,6 +620,7 @@ function Charities() {
           <div className="filter-buttons">
 
             <button
+              type="button"
               className={
                 filter === "All"
                   ? "filter-btn active"
@@ -482,6 +634,7 @@ function Charities() {
             </button>
 
             <button
+              type="button"
               className={
                 filter === "Featured"
                   ? "filter-btn active"
@@ -504,15 +657,25 @@ function Charities() {
 
         {error && (
           <div className="charity-message error">
-            <span>!</span>
+
+            <span>
+              !
+            </span>
+
             {error}
+
           </div>
         )}
 
         {message && (
           <div className="charity-message success">
-            <span>✓</span>
+
+            <span>
+              ✓
+            </span>
+
             {message}
+
           </div>
         )}
 
@@ -549,7 +712,9 @@ function Charities() {
 
             <div className="no-charities">
 
-              <div>🔎</div>
+              <div>
+                🔎
+              </div>
 
               <h3>
                 No charities found
@@ -570,17 +735,18 @@ function Charities() {
                 (charity) => {
 
                   const charityId =
-                    getCharityId(charity);
+                    getCharityId(
+                      charity
+                    );
 
                   const isSelected =
                     selectedCharity ===
                     charityId;
 
-                  const isFeatured =
-                    isCharityFeatured(charity);
-
-                  const upcomingEvents =
-                    getUpcomingEvents(charity);
+                  const events =
+                    getCharityEvents(
+                      charity
+                    );
 
                   return (
                     <article
@@ -599,8 +765,12 @@ function Charities() {
                         {charity.image ? (
 
                           <img
-                            src={charity.image}
-                            alt={charity.name}
+                            src={
+                              charity.image
+                            }
+                            alt={
+                              charity.name
+                            }
                             className="charity-card-image"
                           />
 
@@ -612,17 +782,24 @@ function Charities() {
 
                         )}
 
-                        {isFeatured && (
+                        {isCharityFeatured(
+                          charity
+                        ) && (
+
                           <span className="featured-badge">
                             ⭐ Featured
                           </span>
+
                         )}
 
-                        {isSelected && (
-                          <span className="selected-badge">
-                            ✓ Selected
-                          </span>
-                        )}
+                        {!accessDenied &&
+                          isSelected && (
+
+                            <span className="selected-badge">
+                              ✓ Selected
+                            </span>
+
+                          )}
 
                       </div>
 
@@ -640,7 +817,7 @@ function Charities() {
 
                         {/* EVENTS */}
 
-                        {upcomingEvents.length > 0 && (
+                        {events.length > 0 && (
 
                           <div className="events-box">
 
@@ -650,7 +827,7 @@ function Charities() {
 
                             <ul>
 
-                              {upcomingEvents.map(
+                              {events.map(
                                 (
                                   event,
                                   index
@@ -659,14 +836,7 @@ function Charities() {
                                   <li
                                     key={index}
                                   >
-                                    {typeof event ===
-                                    "object"
-                                      ? event.name ||
-                                        event.title ||
-                                        JSON.stringify(
-                                          event
-                                        )
-                                      : event}
+                                    {event}
                                   </li>
 
                                 )
@@ -678,25 +848,55 @@ function Charities() {
 
                         )}
 
-                        {/* SELECT */}
+                        {/* CHARITY SELECTION */}
 
-                        <button
-                          className={
-                            isSelected
-                              ? "select-charity-btn selected"
-                              : "select-charity-btn"
-                          }
-                          onClick={() =>
-                            handleSelectCharity(
-                              charityId
-                            )
-                          }
-                          disabled={saving}
-                        >
-                          {isSelected
-                            ? "✓ Charity Selected"
-                            : "Select This Charity"}
-                        </button>
+                        {accessDenied ? (
+
+                          <div className="subscription-required-box">
+
+                            <div className="subscription-required-icon">
+                              🔒
+                            </div>
+
+                            <div>
+
+                              <strong>
+                                Subscription Required
+                              </strong>
+
+                              <p>
+                                Subscribe to select
+                                this charity.
+                              </p>
+
+                            </div>
+
+                          </div>
+
+                        ) : (
+
+                          <button
+                            type="button"
+                            className={
+                              isSelected
+                                ? "select-charity-btn selected"
+                                : "select-charity-btn"
+                            }
+                            onClick={() =>
+                              handleSelectCharity(
+                                charityId
+                              )
+                            }
+                            disabled={
+                              saving
+                            }
+                          >
+                            {isSelected
+                              ? "✓ Charity Selected"
+                              : "Select This Charity"}
+                          </button>
+
+                        )}
 
                         {/* DONATION */}
 
@@ -718,12 +918,13 @@ function Charities() {
 
                             <div className="amount-input">
 
-                              <span>₹</span>
+                              <span>
+                                ₹
+                              </span>
 
                               <input
                                 type="number"
                                 min="1"
-                                step="1"
                                 value={
                                   donationAmount
                                 }
@@ -740,6 +941,7 @@ function Charities() {
                             </div>
 
                             <button
+                              type="button"
                               className="donate-btn"
                               onClick={() =>
                                 handleDonate(
@@ -783,88 +985,159 @@ function Charities() {
             CONTRIBUTION
         ================================================= */}
 
-        <section className="contribution-section">
+        {accessDenied ? (
 
-          <div className="contribution-header">
+          <section className="contribution-section">
 
-            <div>
+            <div className="contribution-header">
 
-              <span>
-                YOUR CHARITY CONTRIBUTION
-              </span>
+              <div>
 
-              <h3>
-                Decide how much you want to give back.
-              </h3>
+                <span>
+                  CHARITY CONTRIBUTION
+                </span>
 
-              <p>
-                Choose a contribution between
-                10% and 100% for your selected
-                charity.
-              </p>
+                <h3>
+                  Subscribe to choose your charity.
+                </h3>
 
-            </div>
+                <p>
+                  An active subscription is required
+                  to select a charity and manage your
+                  contribution percentage.
+                </p>
 
-            <div className="contribution-value">
-              {contribution}%
-            </div>
+              </div>
 
-          </div>
-
-          <div className="slider-area">
-
-            <input
-              type="range"
-              min="10"
-              max="100"
-              step="1"
-              value={contribution}
-              onChange={
-                handleContributionChange
-              }
-            />
-
-            <div className="slider-labels">
-
-              <span>
-                10% minimum
-              </span>
-
-              <span>
-                100% maximum
-              </span>
+              <div className="contribution-value">
+                🔒
+              </div>
 
             </div>
 
-          </div>
+            <div className="contribution-footer">
 
-          <div className="contribution-footer">
+              <div>
 
-            <div>
+                <strong>
+                  Subscription required
+                </strong>
 
-              <strong>
-                {contribution}% contribution
-              </strong>
+                <span>
+                  You can still support a charity
+                  with a one-time donation.
+                </span>
 
-              <span>
-                You can change this anytime.
-              </span>
+              </div>
+
+              <a
+                href="/subscription"
+                className="save-charity-btn"
+                style={{
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                View Subscription
+              </a>
 
             </div>
 
-            <button
-              className="save-charity-btn"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving
-                ? "Saving..."
-                : "Save Charity Selection"}
-            </button>
+          </section>
 
-          </div>
+        ) : (
 
-        </section>
+          <section className="contribution-section">
+
+            <div className="contribution-header">
+
+              <div>
+
+                <span>
+                  YOUR CHARITY CONTRIBUTION
+                </span>
+
+                <h3>
+                  Decide how much you want to give back.
+                </h3>
+
+                <p>
+                  Choose a contribution between
+                  10% and 100% for your selected
+                  charity.
+                </p>
+
+              </div>
+
+              <div className="contribution-value">
+                {contribution}%
+              </div>
+
+            </div>
+
+            <div className="slider-area">
+
+              <input
+                type="range"
+                min="10"
+                max="100"
+                step="1"
+                value={contribution}
+                onChange={
+                  handleContributionChange
+                }
+              />
+
+              <div className="slider-labels">
+
+                <span>
+                  10% minimum
+                </span>
+
+                <span>
+                  100% maximum
+                </span>
+
+              </div>
+
+            </div>
+
+            <div className="contribution-footer">
+
+              <div>
+
+                <strong>
+                  {contribution}% contribution
+                </strong>
+
+                <span>
+                  You can change this anytime.
+                </span>
+
+              </div>
+
+              <button
+                type="button"
+                className="save-charity-btn"
+                onClick={
+                  handleSave
+                }
+                disabled={
+                  saving
+                }
+              >
+                {saving
+                  ? "Saving..."
+                  : "Save Charity Selection"}
+              </button>
+
+            </div>
+
+          </section>
+
+        )}
 
       </main>
 

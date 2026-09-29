@@ -1,668 +1,1102 @@
-import { useEffect, useState } from "react";
-import { apiRequest } from "../../api";
-import "./Winners.css";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  getWinners,
+  verifyWinner,
+  markWinnerPaid,
+} from "../../api";
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+const formatCurrency = (
+  amount
+) => {
+  const value =
+    Number(amount || 0);
+
+  return `₹${value.toLocaleString(
+    "en-IN",
+    {
+      maximumFractionDigits: 2,
+    }
+  )}`;
+};
+
+const normalizeStatus = (
+  value
+) => {
+  const status = String(
+    value || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    status === "approved" ||
+    status === "verified"
+  ) {
+    return "Approved";
+  }
+
+  if (status === "paid") {
+    return "Paid";
+  }
+
+  return "Pending";
+};
+
+const getMatchText = (
+  matchedNumbers
+) => {
+  const count =
+    Number(
+      matchedNumbers || 0
+    );
+
+  if (count >= 5) {
+    return "5 Match";
+  }
+
+  if (count === 4) {
+    return "4 Match";
+  }
+
+  if (count === 3) {
+    return "3 Match";
+  }
+
+  return `${count} Match`;
+};
+
+// =====================================================
+// COMPONENT
+// =====================================================
 
 const Winners = () => {
-  const [winners, setWinners] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] =
-    useState(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  // ===================================================
+  // STATE
+  // ===================================================
 
-  const loadWinners = async () => {
-    try {
-      setLoading(true);
-      setError("");
+  const [
+    winners,
+    setWinners,
+  ] = useState([]);
 
-      const data =
-        await apiRequest("/admin/winners");
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-      setWinners(data.winners || []);
-    } catch (error) {
-      console.error(error);
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
 
-      setError(
-        error.message ||
-          "Unable to load winners"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [
+    actionLoading,
+    setActionLoading,
+  ] = useState(null);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
+
+  // ===================================================
+  // LOAD WINNERS
+  // ===================================================
+
+  const loadWinners =
+    async () => {
+      try {
+        setError("");
+
+        const data =
+          await getWinners();
+
+        const winnerList =
+          Array.isArray(
+            data?.winners
+          )
+            ? data.winners
+            : [];
+
+        const normalized =
+          winnerList.map(
+            (winner) => ({
+              ...winner,
+
+              verification_status:
+                normalizeStatus(
+                  winner.verification_status
+                ),
+
+              payment_status:
+                normalizeStatus(
+                  winner.payment_status
+                ),
+
+              matched_numbers:
+                Number(
+                  winner.matched_numbers ||
+                    0
+                ),
+
+              prize_amount:
+                Number(
+                  winner.prize_amount ||
+                    0
+                ),
+            })
+          );
+
+        setWinners(
+          normalized
+        );
+      } catch (err) {
+        console.error(
+          "Load winners error:",
+          err
+        );
+
+        setError(
+          err.response?.data
+            ?.message ||
+            "Failed to load winners"
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    };
+
+  // ===================================================
+  // INITIAL LOAD
+  // ===================================================
 
   useEffect(() => {
     loadWinners();
   }, []);
 
-  const handleApprove = async (winnerId) => {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to approve this winner?"
-      );
+  // ===================================================
+  // REFRESH
+  // ===================================================
 
-    if (!confirmed) return;
-
-    try {
-      setActionLoading(winnerId);
-      setError("");
+  const handleRefresh =
+    async () => {
+      setRefreshing(true);
       setSuccess("");
-
-      await apiRequest(
-        `/admin/winners/${winnerId}/approve`,
-        {
-          method: "PUT",
-        }
-      );
-
-      setSuccess(
-        "Winner proof approved successfully."
-      );
+      setError("");
 
       await loadWinners();
-    } catch (error) {
-      console.error(error);
+    };
 
-      setError(
-        error.message ||
-          "Unable to approve winner"
-      );
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  // ===================================================
+  // VERIFY WINNER
+  // ===================================================
 
-  const handleReject = async (winnerId) => {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to reject this winner proof?"
-      );
+  const handleVerify =
+    async (winnerId) => {
+      try {
+        setActionLoading(
+          `verify-${winnerId}`
+        );
 
-    if (!confirmed) return;
+        setError("");
+        setSuccess("");
 
-    try {
-      setActionLoading(winnerId);
-      setError("");
-      setSuccess("");
+        await verifyWinner(
+          winnerId
+        );
 
-      await apiRequest(
-        `/admin/winners/${winnerId}/reject`,
-        {
-          method: "PUT",
-        }
-      );
+        setSuccess(
+          "Winner verified successfully."
+        );
 
-      setSuccess(
-        "Winner proof rejected successfully."
-      );
+        await loadWinners();
+      } catch (err) {
+        console.error(
+          "Verify winner error:",
+          err
+        );
 
-      await loadWinners();
-    } catch (error) {
-      console.error(error);
+        setError(
+          err.response?.data
+            ?.message ||
+            "Failed to verify winner"
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    };
 
-      setError(
-        error.message ||
-          "Unable to reject winner"
-      );
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  // ===================================================
+  // MARK AS PAID
+  // ===================================================
 
-  const handleMarkPaid = async (winnerId) => {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to mark this winner as paid?"
-      );
+  const handlePayment =
+    async (winnerId) => {
+      try {
+        setActionLoading(
+          `payment-${winnerId}`
+        );
 
-    if (!confirmed) return;
+        setError("");
+        setSuccess("");
 
-    try {
-      setActionLoading(winnerId);
-      setError("");
-      setSuccess("");
+        await markWinnerPaid(
+          winnerId
+        );
 
-      await apiRequest(
-        `/admin/winners/${winnerId}/mark-paid`,
-        {
-          method: "PUT",
-        }
-      );
+        setSuccess(
+          "Winner payment marked as paid."
+        );
 
-      setSuccess(
-        "Winner payment marked as paid."
-      );
+        await loadWinners();
+      } catch (err) {
+        console.error(
+          "Winner payment error:",
+          err
+        );
 
-      await loadWinners();
-    } catch (error) {
-      console.error(error);
+        setError(
+          err.response?.data
+            ?.message ||
+            "Failed to update payment"
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    };
 
-      setError(
-        error.message ||
-          "Unable to mark winner as paid"
-      );
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  // ===================================================
+  // STATISTICS
+  // ===================================================
 
-  const formatDate = (date) => {
-    if (!date) return "-";
+  const statistics =
+    useMemo(() => {
+      const total =
+        winners.length;
 
-    return new Date(
-      date
-    ).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
+      const pendingVerification =
+        winners.filter(
+          (winner) =>
+            winner.verification_status ===
+            "Pending"
+        ).length;
+
+      const approved =
+        winners.filter(
+          (winner) =>
+            winner.verification_status ===
+            "Approved"
+        ).length;
+
+      const paid =
+        winners.filter(
+          (winner) =>
+            winner.payment_status ===
+            "Paid"
+        ).length;
+
+      return {
+        total,
+        pendingVerification,
+        approved,
+        paid,
+      };
+    }, [winners]);
+
+  // ===================================================
+  // LOADING
+  // ===================================================
 
   if (loading) {
     return (
-      <div className="winners-admin-page">
-        <div className="winners-loading-card">
-          <div className="winners-loading-spinner"></div>
-
-          <h2>
-            Loading Winner Records
-          </h2>
-
-          <p>
-            Fetching winner verification
-            information...
-          </p>
-        </div>
+      <div
+        className="winners-page winners-loading"
+        style={{
+          padding: "40px",
+          textAlign: "center",
+        }}
+      >
+        Loading winners...
       </div>
     );
   }
 
+  // ===================================================
+  // UI
+  // ===================================================
+
   return (
-    <div className="winners-admin-page">
+    <div
+      className="winners-page"
+      style={{
+        padding: "30px",
+        maxWidth: "1400px",
+        margin: "0 auto",
+      }}
+    >
+      {/* =================================================
+          HEADER
+      ================================================= */}
 
-      {/* HEADER */}
-      <header className="winners-admin-header">
-
-        <div className="winners-admin-brand">
-          <div className="winners-brand-mark">
-            DH
+      <div
+        className="winners-header"
+        style={{
+          display: "flex",
+          justifyContent:
+            "space-between",
+          alignItems: "center",
+          gap: "20px",
+          marginBottom: "30px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div className="winners-header-content">
+          <div
+            className="winners-eyebrow"
+            style={{
+              fontSize: "13px",
+              fontWeight: "700",
+              letterSpacing: "1.5px",
+              color: "#777",
+              marginBottom: "8px",
+            }}
+          >
+            PRIZE VERIFICATION
           </div>
 
+          <h1
+            className="winners-title"
+            style={{
+              margin: 0,
+              fontSize: "32px",
+            }}
+          >
+            Winner Management
+          </h1>
+
+          <p
+            className="winners-subtitle"
+            style={{
+              marginTop: "8px",
+              color: "#666",
+            }}
+          >
+            Review submitted proof,
+            verify winning claims,
+            and manage prize payment
+            status.
+          </p>
+        </div>
+
+        <button
+          className="refresh-winners-btn"
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          style={{
+            padding: "12px 18px",
+            border:
+              "1px solid #ddd",
+            borderRadius: "10px",
+            background: "#fff",
+            cursor: refreshing
+              ? "not-allowed"
+              : "pointer",
+            fontWeight: "600",
+          }}
+        >
+          {refreshing
+            ? "Refreshing..."
+            : "Refresh Winners"}
+        </button>
+      </div>
+
+      {/* =================================================
+          SUCCESS
+      ================================================= */}
+
+      {success && (
+        <div
+          className="winner-success-message"
+          style={{
+            marginBottom: "20px",
+            padding: "14px 16px",
+            borderRadius: "10px",
+            background:
+              "#eaf8ef",
+            color: "#18753c",
+            border:
+              "1px solid #b9e6c8",
+          }}
+        >
+          {success}
+        </div>
+      )}
+
+      {/* =================================================
+          ERROR
+      ================================================= */}
+
+      {error && (
+        <div
+          className="winner-error-message"
+          style={{
+            marginBottom: "20px",
+            padding: "14px 16px",
+            borderRadius: "10px",
+            background:
+              "#fff0f0",
+            color: "#b42318",
+            border:
+              "1px solid #f3b7b7",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* =================================================
+          STATISTICS
+      ================================================= */}
+
+      <div
+        className="winner-statistics"
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(190px, 1fr))",
+          gap: "18px",
+          marginBottom: "35px",
+        }}
+      >
+        <StatCard
+          title="All Winners"
+          value={
+            statistics.total
+          }
+          description="Draw result records"
+        />
+
+        <StatCard
+          title="Pending Verification"
+          value={
+            statistics.pendingVerification
+          }
+          description="Awaiting admin review"
+        />
+
+        <StatCard
+          title="Approved"
+          value={
+            statistics.approved
+          }
+          description="Verified winner claims"
+        />
+
+        <StatCard
+          title="Paid"
+          value={
+            statistics.paid
+          }
+          description="Completed payments"
+        />
+      </div>
+
+      {/* =================================================
+          WINNER RECORDS
+      ================================================= */}
+
+      <section
+        className="winner-records-section"
+      >
+        <div
+          className="winner-records-header"
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems: "center",
+            marginBottom: "18px",
+          }}
+        >
           <div>
-            <span>Digital Heroes</span>
-            <strong>Admin Console</strong>
+            <div
+              className="winner-records-label"
+              style={{
+                fontSize: "13px",
+                fontWeight: "700",
+                letterSpacing: "1.2px",
+                color: "#777",
+              }}
+            >
+              WINNER RECORDS
+            </div>
+
+            <h2
+              className="winner-records-title"
+              style={{
+                margin:
+                  "6px 0 0",
+              }}
+            >
+              Verification Queue
+            </h2>
           </div>
+
+          <span
+            className="winner-record-count"
+            style={{
+              fontSize: "14px",
+              color: "#666",
+            }}
+          >
+            {winners.length} Records
+          </span>
         </div>
 
-        <div className="winners-header-label">
-          Winner Verification
-        </div>
+        {/* =================================================
+            EMPTY STATE
+        ================================================= */}
 
-      </header>
+        {winners.length ===
+        0 ? (
+          <div
+            className="winner-empty-state"
+            style={{
+              padding: "50px",
+              textAlign: "center",
+              border:
+                "1px solid #e5e5e5",
+              borderRadius: "16px",
+              background: "#fff",
+            }}
+          >
+            <h3>
+              No winner records found
+            </h3>
 
-      <main className="winners-admin-main">
-
-        {/* PAGE HERO */}
-        <section className="winners-page-hero">
-
-          <div>
-            <span className="winners-eyebrow">
-              PRIZE VERIFICATION
-            </span>
-
-            <h1>
-              Winner Management
-            </h1>
-
-            <p>
-              Review submitted proof,
-              verify winning claims, and
-              manage prize payment status.
+            <p
+              style={{
+                marginTop: "8px",
+                color: "#777",
+              }}
+            >
+              Winners will appear
+              here after draw results
+              are calculated.
             </p>
           </div>
-
-          <button
-            className="winners-btn winners-btn-secondary"
-            onClick={loadWinners}
+        ) : (
+          <div
+            className="winner-list"
+            style={{
+              display: "grid",
+              gap: "18px",
+            }}
           >
-            Refresh Winners
-          </button>
-
-        </section>
-
-        {/* MESSAGES */}
-        {error && (
-          <div className="winners-message winners-message-error">
-            <strong>Error:</strong>{" "}
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="winners-message winners-message-success">
-            ✓ {success}
-          </div>
-        )}
-
-        {/* SUMMARY */}
-        <section className="winners-summary-grid">
-
-          <div className="winner-summary-card">
-            <span>All Winners</span>
-            <strong>{winners.length}</strong>
-            <small>
-              Draw result records
-            </small>
-          </div>
-
-          <div className="winner-summary-card">
-            <span>Pending Verification</span>
-            <strong>
-              {
-                winners.filter(
-                  (winner) =>
-                    winner.verificationStatus ===
-                    "Pending"
-                ).length
-              }
-            </strong>
-            <small>
-              Awaiting admin review
-            </small>
-          </div>
-
-          <div className="winner-summary-card">
-            <span>Approved</span>
-            <strong>
-              {
-                winners.filter(
-                  (winner) =>
-                    winner.verificationStatus ===
-                    "Approved"
-                ).length
-              }
-            </strong>
-            <small>
-              Verified winner claims
-            </small>
-          </div>
-
-          <div className="winner-summary-card">
-            <span>Paid</span>
-            <strong>
-              {
-                winners.filter(
-                  (winner) =>
-                    winner.paymentStatus ===
-                    "Paid"
-                ).length
-              }
-            </strong>
-            <small>
-              Completed payments
-            </small>
-          </div>
-
-        </section>
-
-        {/* WINNER DIRECTORY */}
-        <section className="winner-directory-section">
-
-          <div className="winner-section-heading">
-            <div>
-              <span className="winners-eyebrow">
-                WINNER RECORDS
-              </span>
-
-              <h2>
-                Verification Queue
-              </h2>
-            </div>
-
-            <span className="winner-count-badge">
-              {winners.length} Records
-            </span>
-          </div>
-
-          {winners.length === 0 ? (
-            <div className="winner-empty-card">
-
-              <div className="winner-empty-icon">
-                DH
-              </div>
-
-              <h3>
-                No winners found
-              </h3>
-
-              <p>
-                Winner records will appear
-                here after draw calculation.
-              </p>
-
-            </div>
-          ) : (
-            <div className="winner-admin-grid">
-
-              {winners.map((winner) => {
-
-                const isProcessing =
+            {winners.map(
+              (
+                winner,
+                index
+              ) => {
+                const isVerifying =
                   actionLoading ===
-                  winner._id;
+                  `verify-${winner.id}`;
 
-                const verificationClass =
-                  winner.verificationStatus
-                    ?.toLowerCase();
+                const isPaying =
+                  actionLoading ===
+                  `payment-${winner.id}`;
 
-                const paymentClass =
-                  winner.paymentStatus
-                    ?.toLowerCase();
+                const isApproved =
+                  winner.verification_status ===
+                  "Approved";
+
+                const isPaid =
+                  winner.payment_status ===
+                  "Paid";
+
+                const displayName =
+                  winner.user_name ||
+                  `Winner #${
+                    index + 1
+                  }`;
 
                 return (
-                  <article
-                    className="winner-admin-card"
-                    key={winner._id}
+                  <div
+                    key={winner.id}
+                    className="winner-card"
+                    style={{
+                      border:
+                        "1px solid #e5e5e5",
+                      borderRadius:
+                        "18px",
+                      padding: "24px",
+                      background:
+                        "#fff",
+                      boxShadow:
+                        "0 4px 15px rgba(0,0,0,0.04)",
+                    }}
                   >
+                    {/* ===================================
+                        WINNER HEADER
+                    =================================== */}
 
-                    {/* CARD TOP */}
-                    <div className="winner-card-top">
-
-                      <div className="winner-user-avatar">
-                        {winner.user?.name
-                          ?.charAt(0)
-                          ?.toUpperCase() ||
-                          "W"}
-                      </div>
-
-                      <div className="winner-user-info">
-                        <h2>
-                          {winner.user?.name ||
-                            "Unknown User"}
-                        </h2>
-
-                        <p>
-                          {winner.user?.email ||
-                            "-"}
-                        </p>
-                      </div>
-
-                      <span
-                        className={`winner-verification-badge ${verificationClass}`}
+                    <div
+                      className="winner-card-header"
+                      style={{
+                        display:
+                          "flex",
+                        justifyContent:
+                          "space-between",
+                        gap: "20px",
+                        flexWrap:
+                          "wrap",
+                        marginBottom:
+                          "22px",
+                      }}
+                    >
+                      <div
+                        className="winner-user-info"
+                        style={{
+                          display:
+                            "flex",
+                          gap: "14px",
+                          alignItems:
+                            "center",
+                        }}
                       >
-                        {
-                          winner.verificationStatus
-                        }
-                      </span>
-
-                    </div>
-
-                    {/* PRIZE DETAILS */}
-                    <div className="winner-details-grid">
-
-                      <div className="winner-detail-item">
-                        <span>
-                          Prize Amount
-                        </span>
-
-                        <strong className="winner-prize">
-                          ₹
-                          {Number(
-                            winner.prizeAmount ||
-                              0
-                          ).toLocaleString(
-                            "en-IN"
-                          )}
-                        </strong>
-                      </div>
-
-                      <div className="winner-detail-item">
-                        <span>
-                          Match
-                        </span>
-
-                        <strong>
-                          {
-                            winner.matchedNumbers
-                          }
-                        </strong>
-                      </div>
-
-                      <div className="winner-detail-item">
-                        <span>
-                          Category
-                        </span>
-
-                        <strong>
-                          {
-                            winner.prizeCategory
-                          }
-                        </strong>
-                      </div>
-
-                      <div className="winner-detail-item">
-                        <span>
-                          Payment
-                        </span>
-
-                        <span
-                          className={`winner-payment-badge ${paymentClass}`}
+                        <div
+                          className="winner-avatar"
+                          style={{
+                            width:
+                              "46px",
+                            height:
+                              "46px",
+                            borderRadius:
+                              "50%",
+                            display:
+                              "flex",
+                            alignItems:
+                              "center",
+                            justifyContent:
+                              "center",
+                            background:
+                              "#f2f2f2",
+                            fontWeight:
+                              "700",
+                          }}
                         >
-                          {
-                            winner.paymentStatus
-                          }
-                        </span>
-                      </div>
+                          {displayName
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
 
-                      <div className="winner-detail-item">
-                        <span>
-                          Submitted
-                        </span>
-
-                        <strong>
-                          {formatDate(
-                            winner.updatedAt
-                          )}
-                        </strong>
-                      </div>
-
-                    </div>
-
-                    {/* PROOF */}
-                    <div className="winner-proof-section">
-
-                      <div className="winner-proof-heading">
                         <div>
-                          <span>
-                            VERIFICATION PROOF
-                          </span>
-
-                          <h3>
-                            Winner Screenshot
+                          <h3
+                            className="winner-name"
+                            style={{
+                              margin:
+                                0,
+                            }}
+                          >
+                            {displayName}
                           </h3>
-                        </div>
 
-                        {winner.proofScreenshot && (
-                          <span className="proof-ready-badge">
-                            Proof Submitted
-                          </span>
-                        )}
+                          <p
+                            className="winner-email"
+                            style={{
+                              margin:
+                                "5px 0 0",
+                              color:
+                                "#777",
+                              fontSize:
+                                "14px",
+                            }}
+                          >
+                            {winner.user_email ||
+                              `User ID: ${winner.user_id}`}
+                          </p>
+                        </div>
                       </div>
 
-                      {winner.proofScreenshot ? (
-                        <>
-
-                          <div className="winner-proof-preview">
-                            <img
-                              src={
-                                winner.proofScreenshot
-                              }
-                              alt="Winner proof screenshot"
-                            />
-                          </div>
-
-                          <a
-                            href={
-                              winner.proofScreenshot
-                            }
-                            target="_blank"
-                            rel="noreferrer"
-                            className="winners-btn winners-btn-secondary proof-open-btn"
-                          >
-                            Open Full Screenshot
-                          </a>
-
-                        </>
-                      ) : (
-                        <div className="proof-empty">
-                          <span>
-                            No proof screenshot
-                            submitted yet.
-                          </span>
+                      <div
+                        className="winner-prize"
+                        style={{
+                          textAlign:
+                            "right",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize:
+                              "13px",
+                            color:
+                              "#777",
+                          }}
+                        >
+                          Prize Amount
                         </div>
-                      )}
 
+                        <div
+                          className="winner-prize-amount"
+                          style={{
+                            fontSize:
+                              "24px",
+                            fontWeight:
+                              "800",
+                            marginTop:
+                              "3px",
+                          }}
+                        >
+                          {formatCurrency(
+                            winner.prize_amount
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* ACTIONS */}
-                    <div className="winner-admin-actions">
+                    {/* ===================================
+                        DETAILS
+                    =================================== */}
 
-                      {winner.verificationStatus ===
-                        "Pending" &&
-                        winner.proofScreenshot && (
-                          <div className="winner-review-actions">
-
-                            <button
-                              className="winners-btn winners-btn-primary"
-                              disabled={
-                                isProcessing
-                              }
-                              onClick={() =>
-                                handleApprove(
-                                  winner._id
-                                )
-                              }
-                            >
-                              {isProcessing
-                                ? "Processing..."
-                                : "Approve Winner"}
-                            </button>
-
-                            <button
-                              className="winners-btn winners-btn-danger"
-                              disabled={
-                                isProcessing
-                              }
-                              onClick={() =>
-                                handleReject(
-                                  winner._id
-                                )
-                              }
-                            >
-                              {isProcessing
-                                ? "Processing..."
-                                : "Reject Proof"}
-                            </button>
-
-                          </div>
+                    <div
+                      className="winner-details-grid"
+                      style={{
+                        display:
+                          "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(160px, 1fr))",
+                        gap: "14px",
+                        marginBottom:
+                          "22px",
+                      }}
+                    >
+                      <InfoBox
+                        label="Match"
+                        value={getMatchText(
+                          winner.matched_numbers
                         )}
+                      />
 
-                      {winner.verificationStatus ===
-                        "Pending" &&
-                        !winner.proofScreenshot && (
-                          <div className="winner-action-note waiting">
-                            <strong>
-                              Waiting for proof
-                            </strong>
+                      <InfoBox
+                        label="Category"
+                        value={
+                          winner.prize_category ||
+                          "-"
+                        }
+                      />
 
-                            <span>
-                              The winner must submit
-                              a screenshot before
-                              verification.
-                            </span>
-                          </div>
-                        )}
+                      <InfoBox
+                        label="Verification"
+                        value={
+                          winner.verification_status
+                        }
+                      />
 
-                      {winner.verificationStatus ===
-                        "Approved" &&
-                        winner.paymentStatus ===
-                          "Pending" && (
-                          <div className="winner-approved-action">
-
-                            <div>
-                              <strong>
-                                Winner approved
-                              </strong>
-
-                              <span>
-                                Prize is ready for
-                                payment.
-                              </span>
-                            </div>
-
-                            <button
-                              className="winners-btn winners-btn-primary"
-                              disabled={
-                                isProcessing
-                              }
-                              onClick={() =>
-                                handleMarkPaid(
-                                  winner._id
-                                )
-                              }
-                            >
-                              {isProcessing
-                                ? "Processing..."
-                                : "Mark as Paid"}
-                            </button>
-
-                          </div>
-                        )}
-
-                      {winner.verificationStatus ===
-                        "Rejected" && (
-                        <div className="winner-action-note rejected">
-                          <strong>
-                            Proof rejected
-                          </strong>
-
-                          <span>
-                            Winner can submit a
-                            new screenshot for
-                            review.
-                          </span>
-                        </div>
-                      )}
-
-                      {winner.paymentStatus ===
-                        "Paid" && (
-                        <div className="winner-action-note paid">
-                          <strong>
-                            ✓ Prize payment completed
-                          </strong>
-
-                          <span>
-                            This winner has received
-                            the recorded prize
-                            payment.
-                          </span>
-                        </div>
-                      )}
-
+                      <InfoBox
+                        label="Payment"
+                        value={
+                          winner.payment_status
+                        }
+                      />
                     </div>
 
-                  </article>
+                    {/* ===================================
+                        VERIFICATION PROOF
+                    =================================== */}
+
+                    <div
+                      className="verification-proof"
+                      style={{
+                        borderTop:
+                          "1px solid #eee",
+                        paddingTop:
+                          "20px",
+                        marginBottom:
+                          "20px",
+                      }}
+                    >
+                      <div
+                        className="verification-proof-title"
+                        style={{
+                          fontSize:
+                            "13px",
+                          fontWeight:
+                            "700",
+                          letterSpacing:
+                            "1px",
+                          color:
+                            "#777",
+                          marginBottom:
+                            "10px",
+                        }}
+                      >
+                        VERIFICATION PROOF
+                      </div>
+
+                      <div
+                        className="verification-proof-box"
+                        style={{
+                          padding:
+                            "20px",
+                          border:
+                            "1px dashed #d7d7d7",
+                          borderRadius:
+                            "12px",
+                          background:
+                            "#fafafa",
+                        }}
+                      >
+                        <strong>
+                          Winner Screenshot
+                        </strong>
+
+                        <div
+                          style={{
+                            marginTop:
+                              "5px",
+                            color:
+                              "#777",
+                            fontSize:
+                              "14px",
+                          }}
+                        >
+                          No proof screenshot
+                          submitted yet.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ===================================
+                        ACTIONS
+                    =================================== */}
+
+                    <div
+                      className="winner-actions"
+                      style={{
+                        display:
+                          "flex",
+                        gap: "12px",
+                        flexWrap:
+                          "wrap",
+                      }}
+                    >
+                      <button
+                        className={`verify-winner-btn ${
+                          isApproved
+                            ? "approved"
+                            : ""
+                        }`}
+                        type="button"
+                        disabled={
+                          isVerifying ||
+                          isApproved
+                        }
+                        onClick={() =>
+                          handleVerify(
+                            winner.id
+                          )
+                        }
+                        style={{
+                          padding:
+                            "11px 18px",
+                          border:
+                            "none",
+                          borderRadius:
+                            "9px",
+                          background:
+                            isApproved
+                              ? "#d9f2df"
+                              : "#111",
+                          color:
+                            isApproved
+                              ? "#21753a"
+                              : "#fff",
+                          cursor:
+                            isVerifying ||
+                            isApproved
+                              ? "not-allowed"
+                              : "pointer",
+                          fontWeight:
+                            "700",
+                        }}
+                      >
+                        {isVerifying
+                          ? "Verifying..."
+                          : isApproved
+                          ? "Approved"
+                          : "Verify Winner"}
+                      </button>
+
+                      <button
+                        className={`mark-paid-btn ${
+                          isPaid
+                            ? "paid"
+                            : ""
+                        }`}
+                        type="button"
+                        disabled={
+                          !isApproved ||
+                          isPaying ||
+                          isPaid
+                        }
+                        onClick={() =>
+                          handlePayment(
+                            winner.id
+                          )
+                        }
+                        style={{
+                          padding:
+                            "11px 18px",
+                          border:
+                            "1px solid #ddd",
+                          borderRadius:
+                            "9px",
+                          background:
+                            isPaid
+                              ? "#d9f2df"
+                              : "#fff",
+                          color:
+                            isPaid
+                              ? "#21753a"
+                              : "#222",
+                          cursor:
+                            !isApproved ||
+                            isPaying ||
+                            isPaid
+                              ? "not-allowed"
+                              : "pointer",
+                          fontWeight:
+                            "700",
+                        }}
+                      >
+                        {isPaying
+                          ? "Processing..."
+                          : isPaid
+                          ? "Paid"
+                          : "Mark as Paid"}
+                      </button>
+                    </div>
+                  </div>
                 );
-              })}
+              }
+            )}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+};
 
-            </div>
-          )}
+// =====================================================
+// STAT CARD
+// =====================================================
 
-        </section>
+const StatCard = ({
+  title,
+  value,
+  description,
+}) => {
+  return (
+    <div
+      className="winner-stat-card"
+      style={{
+        padding: "22px",
+        border:
+          "1px solid #e5e5e5",
+        borderRadius: "16px",
+        background: "#fff",
+      }}
+    >
+      <div
+        className="winner-stat-title"
+        style={{
+          fontSize: "13px",
+          color: "#777",
+          fontWeight: "700",
+          marginBottom: "10px",
+        }}
+      >
+        {title}
+      </div>
 
-      </main>
+      <div
+        className="winner-stat-value"
+        style={{
+          fontSize: "30px",
+          fontWeight: "800",
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        className="winner-stat-description"
+        style={{
+          marginTop: "6px",
+          color: "#888",
+          fontSize: "13px",
+        }}
+      >
+        {description}
+      </div>
+    </div>
+  );
+};
+
+// =====================================================
+// INFO BOX
+// =====================================================
+
+const InfoBox = ({
+  label,
+  value,
+}) => {
+  return (
+    <div
+      className="winner-info-box"
+      style={{
+        padding: "14px",
+        borderRadius: "10px",
+        background: "#f8f8f8",
+      }}
+    >
+      <div
+        className="winner-info-label"
+        style={{
+          fontSize: "12px",
+          color: "#777",
+          marginBottom: "5px",
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        className="winner-info-value"
+        style={{
+          fontWeight: "700",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 };
 
 export default Winners;
-

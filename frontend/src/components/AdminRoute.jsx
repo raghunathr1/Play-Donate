@@ -1,90 +1,51 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { apiRequest } from "../api";
 
 function AdminRoute({ children }) {
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
+  const token = localStorage.getItem("digitalHeroesToken");
+  const storedUser = localStorage.getItem("digitalHeroesUser");
 
-  useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        const token =
-          localStorage.getItem(
-            "digitalHeroesToken"
-          );
+  console.log("========== ADMIN ROUTE ==========");
+  console.log("Token:", token ? "EXISTS" : "MISSING");
+  console.log("Stored User:", storedUser);
 
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        const data = await apiRequest(
-          "/auth/me"
-        );
-
-        setUser(data.user);
-
-        localStorage.setItem(
-          "digitalHeroesUser",
-          JSON.stringify(data.user)
-        );
-      } catch (error) {
-        console.error(
-          "Admin Authentication Error:",
-          error.message
-        );
-
-        localStorage.removeItem(
-          "digitalHeroesToken"
-        );
-
-        localStorage.removeItem(
-          "digitalHeroesUser"
-        );
-
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAdmin();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="route-loading-page">
-        <div className="route-loader-brand">
-          DH
-        </div>
-
-        <div className="route-spinner"></div>
-
-        <p>
-          Verifying admin access...
-        </p>
-      </div>
-    );
+  // No token
+  if (!token) {
+    console.log("ADMIN ROUTE: No token → Login");
+    return <Navigate to="/login" replace />;
   }
 
+  let user = null;
+
+  try {
+    user = JSON.parse(storedUser);
+  } catch (error) {
+    console.error("ADMIN ROUTE: Invalid user JSON", error);
+
+    localStorage.removeItem("digitalHeroesToken");
+    localStorage.removeItem("digitalHeroesUser");
+
+    return <Navigate to="/login" replace />;
+  }
+
+  console.log("Parsed User:", user);
+  console.log("User Role:", user?.role);
+
+  // No user
   if (!user) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    console.log("ADMIN ROUTE: No user → Login");
+    return <Navigate to="/login" replace />;
   }
 
-  if (user.role !== "Admin") {
-    return (
-      <Navigate
-        to="/dashboard"
-        replace
-      />
+  // Role check
+  if (String(user.role).toLowerCase() !== "admin") {
+    console.log(
+      "ADMIN ROUTE: Not Admin → Dashboard"
     );
+
+    return <Navigate to="/dashboard" replace />;
   }
+
+  console.log("ADMIN ROUTE: ADMIN VERIFIED");
 
   return children;
 }

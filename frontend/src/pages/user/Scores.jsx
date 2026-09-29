@@ -18,6 +18,12 @@ function Scores() {
   const [message, setMessage] = useState("");
 
   // =========================================================
+  // ACCESS CONTROL
+  // =========================================================
+
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  // =========================================================
   // GET SCORES
   // =========================================================
 
@@ -25,15 +31,37 @@ function Scores() {
     try {
       setLoading(true);
       setError("");
+      setMessage("");
 
       const data = await apiRequest("/scores");
 
       setScores(data.scores || []);
+      setAccessDenied(false);
     } catch (error) {
       console.error("Load Scores Error:", error);
 
+      // -----------------------------------------------------
+      // NON-SUBSCRIBER
+      // -----------------------------------------------------
+
+      if (error?.response?.status === 403) {
+        setAccessDenied(true);
+        setScores([]);
+        setEditingId(null);
+        setScore("");
+        setDate("");
+        setError("");
+        return;
+      }
+
+      // -----------------------------------------------------
+      // OTHER ERRORS
+      // -----------------------------------------------------
+
       setError(
-        error.message || "Unable to load your scores."
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to load your scores."
       );
     } finally {
       setLoading(false);
@@ -53,6 +81,10 @@ function Scores() {
 
     setError("");
     setMessage("");
+
+    if (accessDenied) {
+      return;
+    }
 
     if (!score || !date) {
       setError("Please enter both score and date.");
@@ -126,8 +158,25 @@ function Scores() {
     } catch (error) {
       console.error("Save Score Error:", error);
 
+      // -----------------------------------------------------
+      // ACCESS REVOKED / NO ACTIVE SUBSCRIPTION
+      // -----------------------------------------------------
+
+      if (error?.response?.status === 403) {
+        setAccessDenied(true);
+        setScores([]);
+        setEditingId(null);
+        setScore("");
+        setDate("");
+        setError("");
+        setMessage("");
+        return;
+      }
+
       setError(
-        error.message || "Unable to save score."
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to save score."
       );
     } finally {
       setSaving(false);
@@ -139,6 +188,10 @@ function Scores() {
   // =========================================================
 
   const handleEdit = (item) => {
+    if (accessDenied) {
+      return;
+    }
+
     setError("");
     setMessage("");
 
@@ -179,6 +232,10 @@ function Scores() {
   // =========================================================
 
   const handleDelete = async (id) => {
+    if (accessDenied) {
+      return;
+    }
+
     const confirmed = window.confirm(
       "Are you sure you want to delete this score?"
     );
@@ -205,8 +262,25 @@ function Scores() {
     } catch (error) {
       console.error("Delete Score Error:", error);
 
+      // -----------------------------------------------------
+      // ACCESS REVOKED / NO ACTIVE SUBSCRIPTION
+      // -----------------------------------------------------
+
+      if (error?.response?.status === 403) {
+        setAccessDenied(true);
+        setScores([]);
+        setEditingId(null);
+        setScore("");
+        setDate("");
+        setError("");
+        setMessage("");
+        return;
+      }
+
       setError(
-        error.message || "Unable to delete score."
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to delete score."
       );
     } finally {
       setDeletingId(null);
@@ -220,7 +294,13 @@ function Scores() {
   const formatDate = (value) => {
     if (!value) return "—";
 
-    return new Date(value).toLocaleDateString(
+    const parsedDate = new Date(value);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "—";
+    }
+
+    return parsedDate.toLocaleDateString(
       "en-IN",
       {
         day: "2-digit",
@@ -318,304 +398,376 @@ function Scores() {
       <main className="scores-container">
 
         {/* ===================================================
-            MESSAGES
+            NON-SUBSCRIBER ACCESS MESSAGE
         =================================================== */}
 
-        {error && (
-          <div className="scores-message error">
-            {error}
-          </div>
-        )}
+        {accessDenied ? (
+          <section className="score-form-card">
 
-        {message && (
-          <div className="scores-message success">
-            {message}
-          </div>
-        )}
+            <div className="score-form-heading">
 
-        {/* ===================================================
-            FORM
-        =================================================== */}
+              <div>
 
-        <section className="score-form-card">
+                <span className="section-label">
+                  SUBSCRIPTION REQUIRED
+                </span>
 
-          <div className="score-form-heading">
+                <h2>
+                  Activate your subscription
+                </h2>
 
-            <div>
+                <p>
+                  An active subscription is required
+                  to access and manage your golf scores.
+                </p>
 
-              <span className="section-label">
-                SCORE ENTRY
-              </span>
-
-              <h2>
-                {editingId
-                  ? "Edit Score"
-                  : "Add New Score"}
-              </h2>
-
-              <p>
-                Enter a Stableford score
-                between 1 and 45.
-              </p>
-
-            </div>
-
-            <div className="score-form-icon">
-              {editingId ? "✎" : "+"}
-            </div>
-
-          </div>
-
-          <form
-            className="score-form"
-            onSubmit={handleSubmit}
-          >
-
-            {/* SCORE */}
-
-            <div className="score-field">
-
-              <label htmlFor="score">
-                Stableford Score
-              </label>
-
-              <input
-                id="score"
-                type="number"
-                min="1"
-                max="45"
-                step="1"
-                value={score}
-                onChange={(e) =>
-                  setScore(e.target.value)
-                }
-                placeholder="1 - 45"
-              />
-
-              <span className="field-hint">
-                Enter your score
-              </span>
-
-            </div>
-
-            {/* DATE */}
-
-            <div className="score-field">
-
-              <label htmlFor="date">
-                Score Date
-              </label>
-
-              <input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) =>
-                  setDate(e.target.value)
-                }
-              />
-
-              <span className="field-hint">
-                One score per date
-              </span>
-
-            </div>
-
-            {/* ACTIONS */}
-
-            <div className="score-form-actions">
-
-              <button
-                type="submit"
-                className="score-primary-btn"
-                disabled={saving}
-              >
-                {saving
-                  ? "Saving..."
-                  : editingId
-                  ? "Update Score"
-                  : "Add Score"}
-              </button>
-
-              {editingId && (
-                <button
-                  type="button"
-                  className="score-secondary-btn"
-                  onClick={handleCancelEdit}
-                >
-                  Cancel
-                </button>
-              )}
-
-            </div>
-
-          </form>
-
-        </section>
-
-        {/* ===================================================
-            SCORE LIST
-        =================================================== */}
-
-        <section className="score-list-section">
-
-          <div className="score-list-heading">
-
-            <div>
-
-              <span className="section-label">
-                SCORE HISTORY
-              </span>
-
-              <h2>
-                Latest Scores
-              </h2>
-
-            </div>
-
-            <div className="score-count">
-
-              <strong>
-                {scores.length}
-              </strong>
-
-              <span>
-                / 5
-              </span>
-
-            </div>
-
-          </div>
-
-          {/* EMPTY */}
-
-          {scores.length === 0 ? (
-
-            <div className="empty-scores">
-
-              <div className="empty-score-icon">
-                +
               </div>
 
-              <h3>
-                No scores yet
-              </h3>
-
-              <p>
-                Add your first Stableford
-                score using the form above.
-              </p>
+              <div className="score-form-icon">
+                🔒
+              </div>
 
             </div>
 
-          ) : (
+            <div
+              className="score-form-actions"
+              style={{
+                marginTop: "24px",
+              }}
+            >
 
-            <div className="scores-list">
+              <a
+                href="/subscription"
+                className="score-primary-btn"
+                style={{
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                View Subscription
+              </a>
 
-              {scores.map(
-                (item, index) => (
+              <a
+                href="/dashboard"
+                className="score-secondary-btn"
+                style={{
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                Back to Dashboard
+              </a>
 
-                  <div
-                    key={item.id}
-                    className="score-item"
+            </div>
+
+          </section>
+        ) : (
+          <>
+            {/* =================================================
+                MESSAGES
+            ================================================= */}
+
+            {error && (
+              <div className="scores-message error">
+                {error}
+              </div>
+            )}
+
+            {message && (
+              <div className="scores-message success">
+                {message}
+              </div>
+            )}
+
+            {/* =================================================
+                FORM
+            ================================================= */}
+
+            <section className="score-form-card">
+
+              <div className="score-form-heading">
+
+                <div>
+
+                  <span className="section-label">
+                    SCORE ENTRY
+                  </span>
+
+                  <h2>
+                    {editingId
+                      ? "Edit Score"
+                      : "Add New Score"}
+                  </h2>
+
+                  <p>
+                    Enter a Stableford score
+                    between 1 and 45.
+                  </p>
+
+                </div>
+
+                <div className="score-form-icon">
+                  {editingId ? "✎" : "+"}
+                </div>
+
+              </div>
+
+              <form
+                className="score-form"
+                onSubmit={handleSubmit}
+              >
+
+                {/* SCORE */}
+
+                <div className="score-field">
+
+                  <label htmlFor="score">
+                    Stableford Score
+                  </label>
+
+                  <input
+                    id="score"
+                    type="number"
+                    min="1"
+                    max="45"
+                    step="1"
+                    value={score}
+                    onChange={(e) =>
+                      setScore(e.target.value)
+                    }
+                    placeholder="1 - 45"
+                  />
+
+                  <span className="field-hint">
+                    Enter your score
+                  </span>
+
+                </div>
+
+                {/* DATE */}
+
+                <div className="score-field">
+
+                  <label htmlFor="date">
+                    Score Date
+                  </label>
+
+                  <input
+                    id="date"
+                    type="date"
+                    value={date}
+                    onChange={(e) =>
+                      setDate(e.target.value)
+                    }
+                  />
+
+                  <span className="field-hint">
+                    One score per date
+                  </span>
+
+                </div>
+
+                {/* ACTIONS */}
+
+                <div className="score-form-actions">
+
+                  <button
+                    type="submit"
+                    className="score-primary-btn"
+                    disabled={saving}
                   >
+                    {saving
+                      ? "Saving..."
+                      : editingId
+                      ? "Update Score"
+                      : "Add Score"}
+                  </button>
 
-                    {/* SCORE NUMBER */}
+                  {editingId && (
+                    <button
+                      type="button"
+                      className="score-secondary-btn"
+                      onClick={handleCancelEdit}
+                    >
+                      Cancel
+                    </button>
+                  )}
 
-                    <div className="score-number">
-                      {item.score}
-                    </div>
+                </div>
 
-                    {/* INFO */}
+              </form>
 
-                    <div className="score-info">
+            </section>
 
-                      <span>
-                        Score #{index + 1}
-                      </span>
+            {/* =================================================
+                SCORE LIST
+            ================================================= */}
 
-                      <strong>
-                        Stableford Score
-                      </strong>
+            <section className="score-list-section">
 
-                      <small>
-                        {formatDate(
-                          item.score_date
-                        )}
-                      </small>
+              <div className="score-list-heading">
 
-                    </div>
+                <div>
 
-                    {/* ACTIONS */}
+                  <span className="section-label">
+                    SCORE HISTORY
+                  </span>
 
-                    <div className="score-actions">
+                  <h2>
+                    Latest Scores
+                  </h2>
 
-                      <button
-                        type="button"
-                        className="edit-score-btn"
-                        onClick={() =>
-                          handleEdit(item)
-                        }
-                      >
-                        Edit
-                      </button>
+                </div>
 
-                      <button
-                        type="button"
-                        className="delete-score-btn"
-                        onClick={() =>
-                          handleDelete(item.id)
-                        }
-                        disabled={
-                          deletingId === item.id
-                        }
-                      >
-                        {deletingId === item.id
-                          ? "..."
-                          : "Delete"}
-                      </button>
+                <div className="score-count">
 
-                    </div>
+                  <strong>
+                    {scores.length}
+                  </strong>
 
+                  <span>
+                    / 5
+                  </span>
+
+                </div>
+
+              </div>
+
+              {/* EMPTY */}
+
+              {scores.length === 0 ? (
+
+                <div className="empty-scores">
+
+                  <div className="empty-score-icon">
+                    +
                   </div>
 
-                )
+                  <h3>
+                    No scores yet
+                  </h3>
+
+                  <p>
+                    Add your first Stableford
+                    score using the form above.
+                  </p>
+
+                </div>
+
+              ) : (
+
+                <div className="scores-list">
+
+                  {scores.map(
+                    (item, index) => (
+
+                      <div
+                        key={item.id}
+                        className="score-item"
+                      >
+
+                        {/* SCORE NUMBER */}
+
+                        <div className="score-number">
+                          {item.score}
+                        </div>
+
+                        {/* INFO */}
+
+                        <div className="score-info">
+
+                          <span>
+                            Score #{index + 1}
+                          </span>
+
+                          <strong>
+                            Stableford Score
+                          </strong>
+
+                          <small>
+                            {formatDate(
+                              item.score_date
+                            )}
+                          </small>
+
+                        </div>
+
+                        {/* ACTIONS */}
+
+                        <div className="score-actions">
+
+                          <button
+                            type="button"
+                            className="edit-score-btn"
+                            onClick={() =>
+                              handleEdit(item)
+                            }
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            className="delete-score-btn"
+                            onClick={() =>
+                              handleDelete(item.id)
+                            }
+                            disabled={
+                              deletingId === item.id
+                            }
+                          >
+                            {deletingId === item.id
+                              ? "..."
+                              : "Delete"}
+                          </button>
+
+                        </div>
+
+                      </div>
+
+                    )
+                  )}
+
+                </div>
+
               )}
 
-            </div>
+            </section>
 
-          )}
+            {/* =================================================
+                INFO
+            ================================================= */}
 
-        </section>
+            <section className="scores-info">
 
-        {/* ===================================================
-            INFO
-        =================================================== */}
+              <div className="info-icon">
+                i
+              </div>
 
-        <section className="scores-info">
+              <div>
 
-          <div className="info-icon">
-            i
-          </div>
+                <h3>
+                  How your scores are used
+                </h3>
 
-          <div>
+                <p>
+                  Digital Heroes keeps your
+                  latest five Stableford scores.
+                  When a new score is added
+                  beyond the fifth score, the
+                  oldest score is automatically
+                  removed.
+                </p>
 
-            <h3>
-              How your scores are used
-            </h3>
+              </div>
 
-            <p>
-              Digital Heroes keeps your
-              latest five Stableford scores.
-              When a new score is added
-              beyond the fifth score, the
-              oldest score is automatically
-              removed.
-            </p>
-
-          </div>
-
-        </section>
+            </section>
+          </>
+        )}
 
       </main>
 

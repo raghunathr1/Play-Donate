@@ -5,8 +5,7 @@ import "./Users.css";
 function Users() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] =
-    useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState("");
 
   // =====================================================
@@ -18,10 +17,81 @@ function Users() {
       setLoading(true);
       setError("");
 
-      const data =
-        await apiRequest("/admin/users");
+      const data = await apiRequest("/admin/users");
 
-      setUsers(data.users || []);
+      // =================================================
+      // SUPABASE -> FRONTEND FIELD NORMALIZATION
+      // =================================================
+      // Backend can return Supabase snake_case fields:
+      //
+      // id
+      // subscription_status
+      // subscription_plan
+      // subscription_start_date
+      // subscription_end_date
+      // charity_contribution
+      //
+      // Existing frontend uses camelCase / _id.
+      //
+      // This keeps the existing UI and functionality
+      // unchanged while making both formats compatible.
+      // =================================================
+
+      const formattedUsers = (data.users || []).map(
+        (user, index) => ({
+          ...user,
+
+          // ID compatibility
+          _id:
+            user._id ||
+            user.id ||
+            user.email ||
+            `user-${index}`,
+
+          // Subscription status
+          subscriptionStatus:
+            user.subscriptionStatus ||
+            user.subscription_status ||
+            "Not Subscribed",
+
+          // Subscription plan
+          subscriptionPlan:
+            user.subscriptionPlan ||
+            user.subscription_plan ||
+            "",
+
+          // Subscription start date
+          subscriptionStartDate:
+            user.subscriptionStartDate ||
+            user.subscription_start_date ||
+            null,
+
+          // Subscription end date
+          subscriptionEndDate:
+            user.subscriptionEndDate ||
+            user.subscription_end_date ||
+            null,
+
+          // Charity contribution
+          charityContribution:
+            user.charityContribution ??
+            user.charity_contribution ??
+            10,
+
+          // Charity compatibility
+          charity:
+            user.charity ||
+            user.charities ||
+            null,
+        })
+      );
+
+      setUsers(formattedUsers);
+
+      console.log(
+        "Admin Users:",
+        formattedUsers
+      );
     } catch (error) {
       console.error(
         "Load Users Error:",
@@ -45,18 +115,15 @@ function Users() {
   const handleStatusChange = async (user) => {
     let newStatus;
 
-    if (
-      user.subscriptionStatus === "Active"
-    ) {
+    if (user.subscriptionStatus === "Active") {
       newStatus = "Cancelled";
     } else {
       newStatus = "Active";
     }
 
-    const confirmChange =
-      window.confirm(
-        `Are you sure you want to change this user's subscription status to "${newStatus}"?`
-      );
+    const confirmChange = window.confirm(
+      `Are you sure you want to change this user's subscription status to "${newStatus}"?`
+    );
 
     if (!confirmChange) {
       return;
@@ -309,6 +376,7 @@ function Users() {
                     {/* USER DETAILS */}
                     <div className="user-details">
 
+                      {/* SUBSCRIPTION PLAN */}
                       <div className="user-detail-row">
                         <span>
                           Subscription Plan
@@ -320,6 +388,7 @@ function Users() {
                         </strong>
                       </div>
 
+                      {/* SUBSCRIPTION STATUS */}
                       <div className="user-detail-row">
                         <span>
                           Subscription Status
@@ -332,10 +401,12 @@ function Users() {
                               : "inactive"
                           }`}
                         >
-                          {user.subscriptionStatus}
+                          {user.subscriptionStatus ||
+                            "Not Subscribed"}
                         </span>
                       </div>
 
+                      {/* SUBSCRIPTION END */}
                       {user.subscriptionEndDate && (
                         <div className="user-detail-row">
                           <span>
@@ -357,6 +428,7 @@ function Users() {
                         </div>
                       )}
 
+                      {/* CHARITY */}
                       <div className="user-detail-row">
                         <span>
                           Charity
@@ -368,13 +440,14 @@ function Users() {
                         </strong>
                       </div>
 
+                      {/* CHARITY CONTRIBUTION */}
                       <div className="user-detail-row">
                         <span>
                           Charity Contribution
                         </span>
 
                         <strong>
-                          {user.charityContribution ||
+                          {user.charityContribution ??
                             10}
                           %
                         </strong>
@@ -396,9 +469,7 @@ function Users() {
                             user
                           )
                         }
-                        disabled={
-                          isProcessing
-                        }
+                        disabled={isProcessing}
                       >
                         {isProcessing
                           ? "Updating..."

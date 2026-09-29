@@ -10,6 +10,10 @@ function Draws() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // =========================================================
+  // PRIZE LEVELS
+  // =========================================================
+
   const prizeLevels = [
     {
       id: 1,
@@ -44,18 +48,42 @@ function Draws() {
         setLoading(true);
         setError("");
 
+        // =====================================================
+        // CURRENT USER
+        // =====================================================
+
         const userData =
           await apiRequest("/auth/me");
 
-        setUser(userData.user);
+        console.log(
+          "Draws - User Data:",
+          userData
+        );
+
+        const currentUser =
+          userData?.user ||
+          userData ||
+          null;
+
+        setUser(currentUser);
+
+        // =====================================================
+        // ALL DRAWS
+        // =====================================================
 
         const drawData =
           await apiRequest("/draws");
 
         const allDraws =
-          drawData.draws || [];
+          Array.isArray(drawData?.draws)
+            ? drawData.draws
+            : [];
 
         setDraws(allDraws);
+
+        // =====================================================
+        // LATEST PUBLISHED DRAW
+        // =====================================================
 
         try {
           const latestData =
@@ -64,7 +92,8 @@ function Draws() {
             );
 
           setLatestDraw(
-            latestData.draw || null
+            latestData?.draw ||
+              null
           );
         } catch (latestError) {
           console.error(
@@ -75,8 +104,10 @@ function Draws() {
           const publishedDraws =
             allDraws.filter(
               (draw) =>
-                draw.status ===
-                "Published"
+                String(
+                  draw?.status || ""
+                ).toLowerCase() ===
+                "published"
             );
 
           setLatestDraw(
@@ -85,14 +116,14 @@ function Draws() {
               : null
           );
         }
-      } catch (error) {
+      } catch (loadError) {
         console.error(
           "Load Draws Error:",
-          error.message
+          loadError.message
         );
 
         setError(
-          error.message ||
+          loadError.message ||
             "Unable to load draws."
         );
       } finally {
@@ -108,30 +139,107 @@ function Draws() {
   // =========================================================
 
   const formatDate = (date) => {
-    if (!date) return "N/A";
+    if (!date) {
+      return "N/A";
+    }
 
-    return new Date(
-      date
-    ).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    const parsedDate =
+      new Date(date);
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return "N/A";
+    }
+
+    return parsedDate.toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
   };
 
   const formatCurrency = (amount) => {
-    return Number(
-      amount || 0
-    ).toLocaleString("en-IN");
+    const value =
+      Number(amount || 0);
+
+    return value.toLocaleString(
+      "en-IN"
+    );
   };
 
   const getDrawModeLabel = (
     drawMode
   ) => {
-    return drawMode === "weighted"
-      ? "Weighted Draw"
-      : "Standard Lottery";
+    return (
+      String(
+        drawMode || ""
+      ).toLowerCase() ===
+      "weighted"
+        ? "Weighted Draw"
+        : "Standard Lottery"
+    );
   };
+
+  const getStatusClass = (status) => {
+    return String(
+      status || ""
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-");
+  };
+
+  // =========================================================
+  // SUBSCRIPTION DATA
+  // =========================================================
+
+  const subscriptionStatus =
+    user?.subscriptionStatus ??
+    user?.subscription_status ??
+    "";
+
+  const subscriptionPlan =
+    user?.subscriptionPlan ??
+    user?.subscription_plan ??
+    "";
+
+  const subscriptionStartDate =
+    user?.subscriptionStartDate ??
+    user?.subscription_start_date ??
+    user?.subscriptionStartedAt ??
+    user?.subscription_started_at ??
+    user?.subscription?.startDate ??
+    user?.subscription?.startedAt ??
+    user?.subscription?.createdAt ??
+    null;
+
+  const subscriptionEndDate =
+    user?.subscriptionEndDate ??
+    user?.subscription_end_date ??
+    user?.subscription?.endDate ??
+    user?.subscription?.expiresAt ??
+    null;
+
+  // =========================================================
+  // SUBSCRIPTION ELIGIBILITY
+  // =========================================================
+
+  const normalizedSubscriptionStatus =
+    String(
+      subscriptionStatus
+    )
+      .trim()
+      .toLowerCase();
+
+  const isEligible =
+    normalizedSubscriptionStatus ===
+    "active";
 
   // =========================================================
   // LOADING
@@ -140,30 +248,44 @@ function Draws() {
   if (loading) {
     return (
       <div className="draws-page">
+
         <div className="draws-loading">
+
           <div className="draws-spinner"></div>
-          <p>Loading monthly draws...</p>
+
+          <p>
+            Loading monthly draws...
+          </p>
+
         </div>
+
       </div>
     );
   }
 
-  const isEligible =
-    user?.subscriptionStatus ===
-    "Active";
+  // =========================================================
+  // PAGE
+  // =========================================================
 
   return (
     <div className="draws-page">
 
-      {/* HEADER */}
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
 
       <header className="draws-header">
+
         <div className="draws-brand">
+
           <div className="draws-brand-mark">
             DH
           </div>
 
-          <span>Digital Heroes</span>
+          <span>
+            Digital Heroes
+          </span>
+
         </div>
 
         <a
@@ -172,12 +294,17 @@ function Draws() {
         >
           ← Dashboard
         </a>
+
       </header>
 
-      {/* HERO */}
+      {/* =====================================================
+          HERO
+      ===================================================== */}
 
       <section className="draws-hero">
+
         <div>
+
           <span className="draws-label">
             MONTHLY DRAW
           </span>
@@ -193,16 +320,20 @@ function Draws() {
             Heroes monthly draw using
             your latest Stableford scores.
           </p>
+
         </div>
 
         <div className="draws-hero-icon">
           ✦
         </div>
+
       </section>
 
       <main className="draws-container">
 
-        {/* ERROR */}
+        {/* =====================================================
+            ERROR
+        ===================================================== */}
 
         {error && (
           <div className="draws-message">
@@ -210,12 +341,16 @@ function Draws() {
           </div>
         )}
 
-        {/* PARTICIPATION */}
+        {/* =====================================================
+            PARTICIPATION
+        ===================================================== */}
 
         <section className="participation-card">
 
           <div className="participation-heading">
+
             <div>
+
               <span className="section-label">
                 YOUR PARTICIPATION
               </span>
@@ -223,6 +358,7 @@ function Draws() {
               <h2>
                 Draw eligibility
               </h2>
+
             </div>
 
             <span
@@ -236,9 +372,15 @@ function Draws() {
                 ? "Eligible"
                 : "Not Eligible"}
             </span>
+
           </div>
 
+          {/* =================================================
+              ELIGIBLE
+          ================================================= */}
+
           {isEligible ? (
+
             <div className="eligibility-content">
 
               <div className="eligibility-icon">
@@ -246,6 +388,7 @@ function Draws() {
               </div>
 
               <div>
+
                 <h3>
                   Your subscription is active
                 </h3>
@@ -259,33 +402,49 @@ function Draws() {
 
                 <div className="eligibility-meta">
 
-                  {user?.subscriptionPlan && (
+                  {subscriptionPlan && (
                     <span>
                       Plan:{" "}
                       <strong>
-                        {
-                          user.subscriptionPlan
-                        }
+                        {subscriptionPlan}
                       </strong>
                     </span>
                   )}
 
-                  {user?.subscriptionEndDate && (
+                  {subscriptionStartDate && (
+                    <span>
+                      Started:{" "}
+                      <strong>
+                        {formatDate(
+                          subscriptionStartDate
+                        )}
+                      </strong>
+                    </span>
+                  )}
+
+                  {subscriptionEndDate && (
                     <span>
                       Ends:{" "}
                       <strong>
                         {formatDate(
-                          user.subscriptionEndDate
+                          subscriptionEndDate
                         )}
                       </strong>
                     </span>
                   )}
 
                 </div>
+
               </div>
 
             </div>
+
           ) : (
+
+            /* =================================================
+               NOT ELIGIBLE
+            ================================================= */
+
             <div className="not-eligible-content">
 
               <div className="not-eligible-icon">
@@ -293,6 +452,7 @@ function Draws() {
               </div>
 
               <div>
+
                 <h3>
                   An active subscription is
                   required
@@ -310,18 +470,23 @@ function Draws() {
                 >
                   View Subscription
                 </a>
+
               </div>
 
             </div>
+
           )}
 
         </section>
 
-        {/* LATEST DRAW */}
+        {/* =====================================================
+            LATEST DRAW
+        ===================================================== */}
 
         <section className="latest-draw-section">
 
           <div className="section-heading">
+
             <span className="section-label">
               LATEST RESULT
             </span>
@@ -329,10 +494,13 @@ function Draws() {
             <h2>
               Latest Published Draw
             </h2>
+
           </div>
 
           {!latestDraw ? (
+
             <div className="no-draw-card">
+
               <div className="no-draw-icon">
                 ✦
               </div>
@@ -346,35 +514,42 @@ function Draws() {
                 here once the administrator
                 publishes it.
               </p>
+
             </div>
+
           ) : (
+
             <div className="latest-draw-card">
 
               <div className="draw-card-top">
 
                 <div>
+
                   <span>
                     DRAW MONTH
                   </span>
 
                   <h3>
-                    {latestDraw.drawMonth}
+                    {latestDraw.drawMonth ||
+                      "N/A"}
                   </h3>
+
                 </div>
 
                 <div className="draw-status">
-                  {latestDraw.status}
+                  {latestDraw.status ||
+                    "N/A"}
                 </div>
 
               </div>
 
               <div className="draw-mode">
+
                 {getDrawModeLabel(
                   latestDraw.drawMode
                 )}
-              </div>
 
-              {/* NUMBERS */}
+              </div>
 
               <div className="winning-section">
 
@@ -382,34 +557,44 @@ function Draws() {
                   WINNING NUMBERS
                 </span>
 
-                {latestDraw.winningNumbers
-                  ?.length > 0 ? (
+                {Array.isArray(
+                  latestDraw.winningNumbers
+                ) &&
+                latestDraw.winningNumbers.length >
+                  0 ? (
+
                   <div className="winning-numbers">
+
                     {latestDraw.winningNumbers.map(
-                      (number) => (
+                      (number, index) => (
+
                         <span
-                          key={number}
+                          key={`latest-${number}-${index}`}
                           className="winning-number"
                         >
                           {number}
                         </span>
+
                       )
                     )}
+
                   </div>
+
                 ) : (
+
                   <p>
                     Winning numbers not
                     available.
                   </p>
+
                 )}
 
               </div>
 
-              {/* PRIZE */}
-
               <div className="draw-financials">
 
                 <div className="financial-card highlight">
+
                   <span>
                     PRIZE POOL
                   </span>
@@ -420,9 +605,11 @@ function Draws() {
                       latestDraw.prizePool
                     )}
                   </strong>
+
                 </div>
 
                 <div className="financial-card">
+
                   <span>
                     JACKPOT
                   </span>
@@ -433,27 +620,28 @@ function Draws() {
                       latestDraw.jackpotAmount
                     )}
                   </strong>
+
                 </div>
 
               </div>
 
-              {/* ROLLOVER */}
-
               {latestDraw.jackpotRolledOver && (
+
                 <div className="draw-notice rollover">
                   🔄 Jackpot rolled over to
                   the next draw.
                 </div>
+
               )}
 
               {latestDraw.jackpotWinner && (
+
                 <div className="draw-notice winner">
                   🎉 A 5-number jackpot
                   winner was recorded.
                 </div>
-              )}
 
-              {/* WINNERS */}
+              )}
 
               <div className="winner-counts">
 
@@ -493,24 +681,30 @@ function Draws() {
               </div>
 
               {latestDraw.publishedAt && (
+
                 <p className="published-date">
                   Published{" "}
                   {formatDate(
                     latestDraw.publishedAt
                   )}
                 </p>
+
               )}
 
             </div>
+
           )}
 
         </section>
 
-        {/* HISTORY */}
+        {/* =====================================================
+            DRAW HISTORY
+        ===================================================== */}
 
         <section className="history-section">
 
           <div className="section-heading">
+
             <span className="section-label">
               PAST DRAWS
             </span>
@@ -518,109 +712,151 @@ function Draws() {
             <h2>
               Draw History
             </h2>
+
           </div>
 
           {draws.length === 0 ? (
+
             <div className="empty-history">
               No draws are available yet.
             </div>
+
           ) : (
+
             <div className="history-list">
 
-              {draws.map((draw) => (
-                <div
-                  key={draw._id}
-                  className="history-card"
-                >
+              {draws.map(
+                (draw, drawIndex) => (
 
-                  <div className="history-main">
+                  <div
+                    key={
+                      draw?._id ||
+                      draw?.id ||
+                      `draw-${drawIndex}`
+                    }
+                    className="history-card"
+                  >
 
-                    <span className="history-month">
-                      {draw.drawMonth}
-                    </span>
+                    <div className="history-main">
 
-                    <span
-                      className={`history-status ${
-                        draw.status ===
-                        "Published"
-                          ? "published"
-                          : "simulated"
-                      }`}
-                    >
-                      {draw.status}
-                    </span>
+                      <span className="history-month">
+                        {draw?.drawMonth ||
+                          "N/A"}
+                      </span>
 
-                  </div>
+                      <span
+                        className={`history-status ${
+                          String(
+                            draw?.status || ""
+                          ).toLowerCase() ===
+                          "published"
+                            ? "published"
+                            : "simulated"
+                        }`}
+                      >
+                        {draw?.status ||
+                          "N/A"}
+                      </span>
 
-                  <div className="history-mode">
-                    {getDrawModeLabel(
-                      draw.drawMode
+                    </div>
+
+                    <div className="history-mode">
+
+                      {getDrawModeLabel(
+                        draw?.drawMode
+                      )}
+
+                    </div>
+
+                    {String(
+                      draw?.status || ""
+                    ).toLowerCase() ===
+                      "published" && (
+
+                      <>
+
+                        <div className="history-numbers">
+
+                          {Array.isArray(
+                            draw?.winningNumbers
+                          ) &&
+                            draw.winningNumbers.map(
+                              (
+                                number,
+                                numberIndex
+                              ) => (
+
+                                <span
+                                  key={`history-${draw?._id || drawIndex}-${number}-${numberIndex}`}
+                                >
+                                  {number}
+                                </span>
+
+                              )
+                            )}
+
+                        </div>
+
+                        <div className="history-prize">
+
+                          <span>
+                            Prize Pool
+                          </span>
+
+                          <strong>
+                            ₹
+                            {formatCurrency(
+                              draw?.prizePool
+                            )}
+                          </strong>
+
+                        </div>
+
+                        <div className="history-winners">
+
+                          <span>
+                            5:{" "}
+                            {draw?.winners5Match ||
+                              0}
+                          </span>
+
+                          <span>
+                            4:{" "}
+                            {draw?.winners4Match ||
+                              0}
+                          </span>
+
+                          <span>
+                            3:{" "}
+                            {draw?.winners3Match ||
+                              0}
+                          </span>
+
+                        </div>
+
+                      </>
+
                     )}
+
                   </div>
 
-                  {draw.status ===
-                    "Published" && (
-                    <>
-                      <div className="history-numbers">
-                        {draw.winningNumbers?.map(
-                          (number) => (
-                            <span
-                              key={number}
-                            >
-                              {number}
-                            </span>
-                          )
-                        )}
-                      </div>
-
-                      <div className="history-prize">
-                        <span>
-                          Prize Pool
-                        </span>
-
-                        <strong>
-                          ₹
-                          {formatCurrency(
-                            draw.prizePool
-                          )}
-                        </strong>
-                      </div>
-
-                      <div className="history-winners">
-                        <span>
-                          5:{" "}
-                          {draw.winners5Match ||
-                            0}
-                        </span>
-
-                        <span>
-                          4:{" "}
-                          {draw.winners4Match ||
-                            0}
-                        </span>
-
-                        <span>
-                          3:{" "}
-                          {draw.winners3Match ||
-                            0}
-                        </span>
-                      </div>
-                    </>
-                  )}
-
-                </div>
-              ))}
+                )
+              )}
 
             </div>
+
           )}
 
         </section>
 
-        {/* PRIZE STRUCTURE */}
+        {/* =====================================================
+            PRIZE STRUCTURE
+        ===================================================== */}
 
         <section className="prize-section">
 
           <div className="section-heading">
+
             <span className="section-label">
               PRIZE STRUCTURE
             </span>
@@ -634,12 +870,14 @@ function Draws() {
               between the three matching
               levels.
             </p>
+
           </div>
 
           <div className="prize-grid">
 
             {prizeLevels.map(
               (prize) => (
+
                 <div
                   key={prize.id}
                   className="prize-card"
@@ -662,6 +900,7 @@ function Draws() {
                   </p>
 
                 </div>
+
               )
             )}
 
@@ -669,11 +908,14 @@ function Draws() {
 
         </section>
 
-        {/* HOW IT WORKS */}
+        {/* =====================================================
+            HOW IT WORKS
+        ===================================================== */}
 
         <section className="how-section">
 
           <div className="section-heading">
+
             <span className="section-label">
               THE PROCESS
             </span>
@@ -681,6 +923,7 @@ function Draws() {
             <h2>
               How the draw works
             </h2>
+
           </div>
 
           <div className="steps">
@@ -694,27 +937,35 @@ function Draws() {
               "Winners are determined by the number of matching scores.",
               "Multiple winners at the same level share that prize equally.",
               "If there is no 5-number winner, the jackpot rolls over.",
-            ].map((step, index) => (
-              <div
-                key={step}
-                className="step"
-              >
-                <span>
-                  {String(index + 1).padStart(
-                    2,
-                    "0"
-                  )}
-                </span>
+            ].map(
+              (step, index) => (
 
-                <p>{step}</p>
-              </div>
-            ))}
+                <div
+                  key={`step-${index}`}
+                  className="step"
+                >
+
+                  <span>
+                    {String(
+                      index + 1
+                    ).padStart(2, "0")}
+                  </span>
+
+                  <p>
+                    {step}
+                  </p>
+
+                </div>
+
+              )
+            )}
 
           </div>
 
         </section>
 
       </main>
+
     </div>
   );
 }
