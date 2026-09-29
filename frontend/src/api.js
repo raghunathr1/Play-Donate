@@ -4,9 +4,9 @@ import axios from "axios";
 // API BASE URL
 // =====================================================
 
+// Render production backend
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000/api";
+  "https://play-donate-zb4x.onrender.com/api";
 
 // =====================================================
 // AXIOS INSTANCE
@@ -23,6 +23,7 @@ const api = axios.create({
 // =====================================================
 // REQUEST INTERCEPTOR
 // =====================================================
+//
 // Login.jsx stores:
 //
 // localStorage.setItem(
@@ -110,14 +111,8 @@ api.interceptors.response.use(
 // 5. apiRequest("/some-url", data)
 //    => POST
 //
-// IMPORTANT FIX:
-// Previously apiRequest("/draws") became POST
-// because arg2 had default {}.
-// That caused:
-//
-// POST /api/draws -> 404
-//
-// Now a request with only URL becomes GET.
+// IMPORTANT:
+// A request with only URL becomes GET.
 // =====================================================
 
 export const apiRequest = async (
