@@ -4,6 +4,7 @@ import "./Charities.css";
 
 function Charities() {
   const [charities, setCharities] = useState([]);
+
   const [selectedCharity, setSelectedCharity] = useState("");
   const [contribution, setContribution] = useState(10);
 
@@ -53,7 +54,7 @@ function Charities() {
   };
 
   // ==================================================
-  // LOAD CHARITIES + CURRENT USER + SUBSCRIPTION
+  // LOAD CHARITIES + CURRENT USER
   // ==================================================
 
   useEffect(() => {
@@ -72,7 +73,7 @@ function Charities() {
         );
 
         setCharities(
-          charityData?.charities || []
+          charityData.charities || []
         );
 
         // ----------------------------------------------
@@ -83,52 +84,19 @@ function Charities() {
           "/auth/me"
         );
 
-        const user =
-          userData?.user ||
-          userData ||
-          null;
+        const user = userData.user;
 
         // ----------------------------------------------
-        // LOAD CURRENT SUBSCRIPTION
+        // CHECK SUBSCRIPTION
         // ----------------------------------------------
 
-        let subscription = null;
-
-        try {
-          const subscriptionData =
-            await apiRequest(
-              "/subscriptions/me"
-            );
-
-          subscription =
-            subscriptionData?.subscription ||
-            null;
-        } catch (subscriptionError) {
-          console.error(
-            "Subscription Fetch Error:",
-            subscriptionError
-          );
-        }
-
-        // ----------------------------------------------
-        // DETERMINE SUBSCRIPTION STATUS
-        // ----------------------------------------------
-        //
-        // Prefer /subscriptions/me because it is the
-        // source used by the actual subscription system.
-        //
-        // Fall back to /auth/me if subscription data
-        // could not be loaded.
-
-        const subscriptionStatus =
-          String(
-            subscription?.status ||
-              user?.subscriptionStatus ||
-              user?.subscription_status ||
-              "Not Subscribed"
-          )
-            .trim()
-            .toLowerCase();
+        const subscriptionStatus = String(
+          user?.subscriptionStatus ||
+            user?.subscription_status ||
+            "Not Subscribed"
+        )
+          .trim()
+          .toLowerCase();
 
         const isActive =
           subscriptionStatus === "active";
@@ -165,8 +133,7 @@ function Charities() {
           user?.charity_contribution;
 
         if (
-          userContribution !==
-            undefined &&
+          userContribution !== undefined &&
           userContribution !== null
         ) {
           setContribution(
@@ -324,9 +291,17 @@ function Charities() {
   // ==================================================
 
   const handleSave = async () => {
+    // -------------------------------------------------
+    // ACCESS CHECK
+    // -------------------------------------------------
+
     if (accessDenied) {
       return;
     }
+
+    // -------------------------------------------------
+    // CHARITY VALIDATION
+    // -------------------------------------------------
 
     if (!selectedCharity) {
       setError(
@@ -334,6 +309,10 @@ function Charities() {
       );
       return;
     }
+
+    // -------------------------------------------------
+    // CONTRIBUTION VALIDATION
+    // -------------------------------------------------
 
     if (
       contribution < 10 ||
@@ -358,7 +337,6 @@ function Charities() {
             body: JSON.stringify({
               charityId:
                 selectedCharity,
-
               contribution:
                 contribution,
             }),
@@ -396,6 +374,10 @@ function Charities() {
           updatedUser
         )
       );
+
+      // ----------------------------------------------
+      // SUCCESS MESSAGE
+      // ----------------------------------------------
 
       setMessage(
         "Charity selection saved successfully!"
@@ -443,6 +425,10 @@ function Charities() {
         donationAmount
       );
 
+    // -------------------------------------------------
+    // AMOUNT VALIDATION
+    // -------------------------------------------------
+
     if (
       !amount ||
       amount <= 0
@@ -461,6 +447,10 @@ function Charities() {
       setMessage("");
       setError("");
 
+      // ----------------------------------------------
+      // CREATE DONATION CHECKOUT
+      // ----------------------------------------------
+
       const data =
         await apiRequest(
           "/donations/create-checkout",
@@ -472,6 +462,10 @@ function Charities() {
             }),
           }
         );
+
+      // ----------------------------------------------
+      // REDIRECT TO STRIPE
+      // ----------------------------------------------
 
       if (
         data?.checkoutUrl

@@ -8,7 +8,7 @@ The application also includes subscription management, winner verification, paym
 ##  Live Demo
 
 ### Frontend
-https://play-donate.vercel.app
+https://play-donate-six.vercel.app/
 
 ### Backend
 https://play-donate-zb4x.onrender.com
